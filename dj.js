@@ -140,7 +140,7 @@ const DJ = (() => {
       yp = new YT.Player('ytplayer', {
         events: {
           onReady: e => { stat('Ready'); try { e.target.unMute(); e.target.setVolume(volNow()); e.target.playVideo(); } catch (er) {} setTimeout(checkBlocked, 1800); },
-          onStateChange: e => { stat(STATES[e.data] || 'Ready'); if (e.data === 1) { if (e.target.isMuted && e.target.isMuted() && volNow() > 0) { ypBlocked = true; tapBtn(true); } else { ypBlocked = false; tapBtn(false); } } else if (e.data !== 3) tapBtn(true); if (e.data === 0 && window.NET_LEADER !== false) actions.djSkip({ auto: true }); },
+          onStateChange: e => { stat(STATES[e.data] || 'Ready'); if (e.data === 1) { if (e.target.isMuted && e.target.isMuted() && volNow() > 0) { ypBlocked = true; tapBtn(true); } else { ypBlocked = false; tapBtn(false); } } else if (e.data === -1 || e.data === 5) tapBtn(true); else tapBtn(false); if (e.data === 0 && window.NET_LEADER !== false) actions.djSkip({ auto: true }); },
           onError: e => { stat(`This video cannot play here (code ${e.data}). Skipping…`); setTimeout(() => { if (window.NET_LEADER !== false) actions.djSkip({ auto: true }); }, 3000); },
         } });
       return;
@@ -157,15 +157,17 @@ const DJ = (() => {
     ypVid = vid; stat('Press ▶ in the video to listen');
   }
   function tapBtn(on) { const b = document.querySelector('#ytdock .yttap'); if (b) b.hidden = !on; }
-  function checkBlocked() { if (!yp || !yp.getPlayerState) return; const s = yp.getPlayerState(); const muted = yp.isMuted && yp.isMuted(); if ((s !== 1 || muted) && D().yt) { ypBlocked = true; tapBtn(true); stat(muted ? 'Muted by the browser. Tap to listen' : 'Blocked by the browser. Tap to listen'); } else tapBtn(false); }
+  function checkBlocked() { if (!yp || !yp.getPlayerState) return; const s = yp.getPlayerState(); const muted = yp.isMuted && yp.isMuted(); if (((s === -1 || s === 5) || muted) && D().yt) { ypBlocked = true; tapBtn(true); stat(muted ? 'Muted by the browser. Tap to listen' : 'Blocked by the browser. Tap to listen'); } else tapBtn(false); }
   // browsers (Brave, Safari, Chrome) only allow sound after the person interacts: any click or key on the page starts the music
-  function resume() {
+  // only nudge a player that has not started or was muted by the browser; never seek (that restarted ads and songs)
+  function resume(e) {
     if (!yp || !yp.getPlayerState || !D().yt || volNow() === 0) return;
+    if (e && e.target && e.target.closest && e.target.closest('#ytdock')) return;
     const s = yp.getPlayerState(), muted = yp.isMuted && yp.isMuted();
-    if (s === 1 && !muted) return;
-    const d = D(); const start = Math.max(0, (Date.now() - (d.yt.at || Date.now())) / 1000);
-    try { yp.unMute(); yp.setVolume(volNow()); if (s !== 1) { yp.seekTo(start, true); yp.playVideo(); } } catch (e) {}
-    setTimeout(checkBlocked, 1200);
+    try {
+      if (muted) yp.unMute();
+      if (s === -1 || s === 5) yp.playVideo();
+    } catch (er) {}
   }
   ['pointerdown', 'keydown'].forEach(ev => addEventListener(ev, resume, { passive: true }));
   setInterval(() => {
@@ -176,12 +178,12 @@ const DJ = (() => {
       const s = yp.getPlayerState(), muted = yp.isMuted && yp.isMuted();
       if (s === 1 && !muted) { stat('Playing'); tapBtn(false); }
       else if (s === 1 && muted) { stat('Muted by the browser. Tap to listen'); tapBtn(true); }
-      else if (STATES[s]) stat(STATES[s]);
+      else { if (STATES[s]) stat(STATES[s]); tapBtn(s === -1 || s === 5); }
     } catch (e) {}
   }, 500);
   actions.djMin = () => { const el = document.getElementById('ytdock'); if (el) el.classList.toggle('min'); };
   const _tap = actions.djTap;
-  actions.djTap = () => { if (yp && yp.playVideo) { const d = D(); const start = Math.max(0, (Date.now() - (d.yt && d.yt.at || Date.now())) / 1000); try { yp.unMute(); yp.seekTo(start, true); yp.setVolume(Math.max(volNow(), 1)); yp.playVideo(); } catch (e) {} setTimeout(checkBlocked, 1500); } else if (_tap) _tap(); };
+  actions.djTap = () => { if (yp && yp.playVideo) { try { yp.unMute(); yp.setVolume(Math.max(volNow(), 1)); const s = yp.getPlayerState(); if (s !== 1 && s !== 3) yp.playVideo(); } catch (e) {} } else if (_tap) _tap(); };
   function boot() { const d = D(); d.st = null; }
   setInterval(() => { if (window.ND_HOSTED) player(); }, 1500);
   return { player, STATIONS, view, miniHTML, actions, changes, forms, onMsg, onJoin, playing, boot, level };
