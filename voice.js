@@ -248,6 +248,23 @@ const VOICE = (() => {
       });
     });
   }
+  async function checkLink() {
+    const v = localVoice(), track = liveTrack();
+    if (!peers.size) {
+      toast('No voice link yet', `Mic ${v.muted || v.deafened ? 'off' : track ? 'on' : 'not detected'} · no WebRTC peer connected.`, 'warn');
+      return;
+    }
+    const details = await Promise.all([...peers.values()].map(async entry => {
+      try {
+        const stats = [...(await entry.pc.getStats()).values()];
+        const out = stats.find(s => s.type === 'outbound-rtp' && (s.kind === 'audio' || s.mediaType === 'audio'));
+        const incoming = stats.find(s => s.type === 'inbound-rtp' && (s.kind === 'audio' || s.mediaType === 'audio'));
+        const sender = entry.sender.track;
+        return `${entry.pc.connectionState}/${entry.pc.iceConnectionState} · mic ${sender && sender.readyState === 'live' && sender.enabled ? 'attached' : 'missing'} · sent ${out ? out.packetsSent || 0 : 0} · received ${incoming ? incoming.packetsReceived || 0 : 0} · player ${entry.audio.paused ? 'paused' : 'playing'}`;
+      } catch (e) { return `${entry.pc.connectionState}/${entry.pc.iceConnectionState} · stats unavailable`; }
+    }));
+    toast('Voice link check', `Mic ${v.muted || v.deafened ? 'off' : track ? 'on' : 'not detected'} · ${details.join(' | ')}`, 'info');
+  }
 
   addEventListener('pagehide', () => {
     stopMicTest();
@@ -257,5 +274,5 @@ const VOICE = (() => {
   ['pointerdown', 'keydown'].forEach(event => addEventListener(event, resumeAudio, { passive: true }));
   setInterval(reconcile, 700);
   setTimeout(() => { if (typeof render === 'function') render(); }, 0);
-  return { hasMic, enableMic, toggleMic, testMic, isTestingMic: () => micTesting, applyMute, refresh, onSignal };
+  return { hasMic, enableMic, toggleMic, testMic, checkLink, isTestingMic: () => micTesting, applyMute, refresh, onSignal };
 })();
