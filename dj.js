@@ -115,31 +115,41 @@ const DJ = (() => {
   }
   function dock() {
     let el = document.getElementById('ytdock');
-    if (!el) { el = document.createElement('div'); el.id = 'ytdock'; el.className = 'ytdock wbox'; el.innerHTML = `<div class="ytbar"><span>♪ DJ</span><span style="flex:1"></span><button type="button" data-a="djSkip" title="Skip">⏭</button><button type="button" data-a="djMin" title="Hide video">–</button></div><div class="ytframe"><div id="ytplayer"></div><button type="button" class="yttap" data-a="djTap">▶ Tap to listen</button></div>`; document.body.appendChild(el); }
+    if (!el) { el = document.createElement('div'); el.id = 'ytdock'; el.className = 'ytdock wbox'; el.innerHTML = `<div class="ytbar"><span>♪ DJ</span><span id="ytstat" class="ytstat">Loading player…</span><a id="ytopen" target="_blank" rel="noopener" title="Open on YouTube">↗</a><button type="button" data-a="djSkip" title="Skip">⏭</button><button type="button" data-a="djMin" title="Hide video">–</button></div><div class="ytframe"><div id="ytplayer"></div><button type="button" class="yttap" data-a="djTap">🔊 Tap to listen</button></div>`; document.body.appendChild(el); }
     return el;
   }
   const volNow = () => { const d = D(); let g = d.vol; if (d.near && typeof PX !== 'undefined') { const a = PX.myPos(), b = PX.boothPos(); if (a) { const dist = Math.hypot(a.x - b.x, a.y - b.y) / 16; g *= Math.max(0.12, Math.min(1, 1.15 - dist / 18)); } } if (S.voice && S.voice.deafened) g = 0; return Math.round(g); };
   function player() {
     if (!window.ND_HOSTED || !S || !user(ME)) return;
     const d = D(), el = dock(), vid = d.yt ? ytId(d.yt.url) : '';
-    el.hidden = !vid;
+    el.hidden = !vid; const op = document.getElementById('ytopen'); if (op && d.yt) op.href = d.yt.url;
     if (!vid) { if (yp && yp.stopVideo) try { yp.stopVideo(); } catch (e) {} ypVid = ''; return; }
-    if (!(window.YT && window.YT.Player)) return loadApi(player);
     const start = Math.max(0, Math.floor((Date.now() - (d.yt.at || Date.now())) / 1000));
+    if (fallback) { if (vid !== ypVid) useFallback(vid, start); return; }
+    if (!(window.YT && window.YT.Player)) { if (!loadApi.t0) loadApi.t0 = Date.now(); if (Date.now() - loadApi.t0 > 8000) { useFallback(vid, start); return; } stat('Loading player…'); return loadApi(player); }
     if (!yp) {
       ypVid = vid;
       yp = new YT.Player('ytplayer', { width: '100%', height: '100%', videoId: vid, playerVars: { autoplay: 1, start, playsinline: 1, rel: 0, modestbranding: 1 },
         events: {
-          onReady: e => { try { e.target.unMute(); e.target.setVolume(volNow()); e.target.playVideo(); } catch (er) {} setTimeout(checkBlocked, 1800); },
-          onStateChange: e => { if (e.data === 1) { if (e.target.isMuted && e.target.isMuted() && volNow() > 0) { ypBlocked = true; tapBtn(true); } else { ypBlocked = false; tapBtn(false); } } else if (e.data !== 3) tapBtn(true); if (e.data === 0 && window.NET_LEADER !== false) actions.djSkip({ auto: true }); },
-          onError: () => { if (window.NET_LEADER !== false) actions.djSkip({ auto: true }); },
+          onReady: e => { stat('Ready'); try { e.target.unMute(); e.target.setVolume(volNow()); e.target.playVideo(); } catch (er) {} setTimeout(checkBlocked, 1800); },
+          onStateChange: e => { stat(STATES[e.data] || 'Ready'); if (e.data === 1) { if (e.target.isMuted && e.target.isMuted() && volNow() > 0) { ypBlocked = true; tapBtn(true); } else { ypBlocked = false; tapBtn(false); } } else if (e.data !== 3) tapBtn(true); if (e.data === 0 && window.NET_LEADER !== false) actions.djSkip({ auto: true }); },
+          onError: e => { stat(`This video cannot play here (code ${e.data}). Skipping…`); setTimeout(() => { if (window.NET_LEADER !== false) actions.djSkip({ auto: true }); }, 3000); },
         } });
       return;
     }
     if (vid !== ypVid && yp.loadVideoById) { ypVid = vid; tapBtn(true); yp.loadVideoById({ videoId: vid, startSeconds: start }); setTimeout(checkBlocked, 1800); }
   }
+  function stat(t_) { const s = document.getElementById('ytstat'); if (s && s.textContent !== t(t_)) s.textContent = t(t_); }
+  const STATES = { '-1': 'Ready, waiting to start', 0: 'Song ended', 1: 'Playing', 2: 'Paused', 3: 'Buffering…', 5: 'Ready, waiting to start' };
+  let fallback = false;
+  function useFallback(vid, start) {
+    // the YouTube control script did not load: show YouTube's own player so its play button works
+    fallback = true; const box = document.querySelector('#ytdock .ytframe'); if (!box) return;
+    box.innerHTML = `<iframe src="https://www.youtube.com/embed/${encodeURIComponent(vid)}?autoplay=1&start=${start}&playsinline=1&rel=0" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen title="DJ"></iframe>`;
+    ypVid = vid; stat('Press ▶ in the video to listen');
+  }
   function tapBtn(on) { const b = document.querySelector('#ytdock .yttap'); if (b) b.hidden = !on; }
-  function checkBlocked() { if (!yp || !yp.getPlayerState) return; const s = yp.getPlayerState(); const muted = yp.isMuted && yp.isMuted(); if ((s !== 1 || muted) && D().yt) { ypBlocked = true; tapBtn(true); } else tapBtn(false); }
+  function checkBlocked() { if (!yp || !yp.getPlayerState) return; const s = yp.getPlayerState(); const muted = yp.isMuted && yp.isMuted(); if ((s !== 1 || muted) && D().yt) { ypBlocked = true; tapBtn(true); stat(muted ? 'Muted by the browser. Tap to listen' : 'Blocked by the browser. Tap to listen'); } else tapBtn(false); }
   // browsers (Brave, Safari, Chrome) only allow sound after the person interacts: any click or key on the page starts the music
   function resume() {
     if (!yp || !yp.getPlayerState || !D().yt || volNow() === 0) return;
