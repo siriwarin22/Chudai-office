@@ -82,7 +82,12 @@ const DJ = (() => {
     if (rev) lastRev = rev;
     d.st = st(x.st) ? x.st : null; d.at = +x.at || Date.now(); d.by = String(x.by || '').slice(0, 40);
     d.q = Array.isArray(x.q) ? x.q.filter(i => i && YT.test(String(i.url))).slice(-30).map(i => ({ id: String(i.id || rid('y')).slice(0, 20), url: String(i.url).slice(0, 200), by: String(i.by || '').slice(0, 40), at: +i.at || Date.now() })) : d.q;
-    d.yt = x.yt && YT.test(String(x.yt.url)) ? { url: String(x.yt.url).slice(0, 200), by: String(x.yt.by || '').slice(0, 40), at: +x.yt.at || Date.now() } : null;
+    if (x.yt && YT.test(String(x.yt.url))) {
+      const url = String(x.yt.url).slice(0, 200);
+      // a sender without a start time (older tab) must not restart the song for everyone
+      const at = +x.yt.at || (d.yt && d.yt.url === url && +d.yt.at) || +d.yt?.at || Date.now();
+      d.yt = { url, by: String(x.yt.by || '').slice(0, 40), at };
+    } else d.yt = null;
     d.st = null; lastBy = false; persist(); render(); player();
   }
   function onJoin() { if (lastBy) setTimeout(share, 600); }
@@ -153,7 +158,7 @@ const DJ = (() => {
   }
   function dock() {
     let el = document.getElementById('ytdock');
-    if (!el) { el = document.createElement('div'); el.id = 'ytdock'; el.className = 'ytdock wbox'; el.innerHTML = `<div class="ytbar"><span>♪ DJ</span><span id="ytstat" class="ytstat">Loading player…</span><a id="ytopen" target="_blank" rel="noopener" title="Open on YouTube">↗</a><button type="button" data-a="djSkip" title="Skip">⏭</button><button type="button" data-a="djMin" title="Hide video">–</button></div><div class="ytframe"><div id="ytplayer"></div><button type="button" class="yttap" data-a="djTap" hidden>🔊 Tap to listen</button></div>`; document.body.appendChild(el); }
+    if (!el) { el = document.createElement('div'); el.id = 'ytdock'; el.className = 'ytdock wbox'; el.innerHTML = `<div class="ytbar"><span>♪ DJ</span><span class="ytver" title="Version">1031.0742</span><span id="ytstat" class="ytstat">Loading player…</span><a id="ytopen" target="_blank" rel="noopener" title="Open on YouTube">↗</a><button type="button" data-a="djSkip" title="Skip">⏭</button><button type="button" data-a="djMin" title="Hide video">–</button></div><div class="ytframe"><div id="ytplayer"></div><button type="button" class="yttap" data-a="djTap" hidden>🔊 Tap to listen</button></div>`; document.body.appendChild(el); }
     return el;
   }
   const volNow = () => { const d = D(); let g = d.vol; if (d.near && typeof PX !== 'undefined') { const a = PX.myPos(), b = PX.boothPos(); if (a) { const dist = Math.hypot(a.x - b.x, a.y - b.y) / 16; g *= Math.max(0.12, Math.min(1, 1.15 - dist / 18)); } } if (S.voice && S.voice.deafened) g = 0; return Math.round(g); };
@@ -199,7 +204,7 @@ const DJ = (() => {
   function teardown() {
     try { if (yp && yp.destroy) yp.destroy(); } catch (e) {}
     const box = document.querySelector('#ytdock .ytframe');
-    if (box) { box.querySelectorAll('iframe').forEach(f => f.remove()); const old = document.getElementById('ytplayer'); if (old) old.remove(); const div = document.createElement('div'); div.id = 'ytplayer'; box.prepend(div); }
+    if (box) { box.querySelectorAll('iframe').forEach(f => { try { f.src = 'about:blank'; } catch (e) {} f.remove(); }); const old = document.getElementById('ytplayer'); if (old) old.remove(); const div = document.createElement('div'); div.id = 'ytplayer'; box.prepend(div); }
     yp = null; ypVid = ''; ypTrack = ''; apiAlive = false; fallback = false; tapBtn(false);
   }
   function tapBtn(on) { const b = document.querySelector('#ytdock .yttap'); if (b) b.hidden = !on; }
