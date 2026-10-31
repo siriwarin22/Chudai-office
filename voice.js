@@ -65,11 +65,19 @@ const VOICE = (() => {
     try { entry.pc.ontrack = null; entry.pc.close(); } catch (e) {}
     entry.audio.pause(); entry.audio.srcObject = null; entry.audio.remove(); peers.delete(id);
   }
+  function attachMic(entry, track) {
+    if (track) track.enabled = true;
+    return entry.sender.replaceTrack(track).then(() => {
+      if (track && entry.sender.track !== track) throw new Error('The browser did not attach the active microphone track.');
+    }).catch(e => {
+      if (peers.get(entry.id) === entry) report(`send-track-${entry.id}`, 'Could not send your microphone', e && e.message || String(e));
+    });
+  }
   function makePeer(id, presence) {
     const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
     const transceiver = pc.addTransceiver('audio', { direction: 'sendrecv' });
     const audio = document.createElement('audio'); audio.autoplay = true; audio.playsInline = true; audio.hidden = true; document.body.appendChild(audio);
-    const entry = { id, pc, sender: transceiver.sender, audio, presence, pendingIce: [], offerStarted: false, playBlocked: false, lastSeenAt: Date.now() };
+    const entry = { id, pc, sender: transceiver.sender, audio, presence, pendingIce: [], offerStarted: false, playBlocked: false, lastSeenAt: Date.now(), trackReady: Promise.resolve() };
     peers.set(id, entry);
     pc.onicecandidate = e => { if (e.candidate) sendSignal(id, { candidate: e.candidate.toJSON ? e.candidate.toJSON() : e.candidate }); };
     pc.ontrack = e => {
@@ -87,7 +95,7 @@ const VOICE = (() => {
     pc.oniceconnectionstatechange = () => {
       if (pc.iceConnectionState === 'failed') report(`ice-${id}`, 'Voice network path failed', 'Realtime is connected, but audio could not cross the network.');
     };
-    const track = liveTrack(); if (track) entry.sender.replaceTrack(track).catch(() => {});
+    const track = liveTrack(); if (track) entry.trackReady = attachMic(entry, track);
     if (String(tabId) < String(id)) startOffer(id, entry);
     return entry;
   }
@@ -95,6 +103,7 @@ const VOICE = (() => {
     if (entry.offerStarted || !CAP.room || entry.pc.signalingState !== 'stable') return;
     entry.offerStarted = true;
     try {
+      await entry.trackReady;
       await entry.pc.setLocalDescription(await entry.pc.createOffer());
       sendSignal(id, { description: entry.pc.localDescription.toJSON() });
     } catch (e) {
@@ -162,7 +171,7 @@ const VOICE = (() => {
     if (micTesting) stopMicTest();
     const v = localVoice(), track = !micTesting && !v.muted && !v.deafened ? liveTrack() : null;
     if (stream && !track) { stream.getTracks().forEach(t => t.stop()); stream = null; }
-    peers.forEach(entry => entry.sender.replaceTrack(track).catch(() => {}));
+    peers.forEach(entry => attachMic(entry, track));
     peers.forEach(setRemoteVolume);
     if (typeof PX !== 'undefined') PX.netPush(true);
     reconcile();
@@ -202,7 +211,7 @@ const VOICE = (() => {
       silent.gain.value = 0;
       source.connect(analyser); analyser.connect(silent); silent.connect(testContext.destination);
       micTesting = true;
-      peers.forEach(entry => entry.sender.replaceTrack(null).catch(() => {}));
+      peers.forEach(entry => attachMic(entry, null));
       if (typeof render === 'function') render();
       const measure = () => {
         if (!micTesting) return;
@@ -226,7 +235,7 @@ const VOICE = (() => {
     if (testContext) { testContext.close().catch(() => {}); testContext = null; }
     if (stream) {
       const v = localVoice(), track = !v.muted && !v.deafened ? liveTrack() : null;
-      peers.forEach(entry => entry.sender.replaceTrack(track).catch(() => {}));
+      peers.forEach(entry => attachMic(entry, track));
       if (!track) { stream.getTracks().forEach(t => t.stop()); stream = null; }
     }
     if (typeof render === 'function') render();
