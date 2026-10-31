@@ -11,7 +11,7 @@ const NET = (() => {
   const LOCAL_ONLY = new Set(['v', 'seededAt', 'voice', 'calls', 'gsync', 'reads']);
   const MAPS = new Set(['prefs']);
   const TABLE = 'office_docs';
-  let db = null, ch = null, snap = new Map(), pushT = null, ready = false, applying = false, status = 'connecting';
+  let db = null, ch = null, snap = new Map(), pushT = null, ready = false, applying = false, status = 'connecting', floorReady = false;
   const recent = new Map(); // rows this tab just wrote: ignore their echo so a late echo cannot undo a newer local edit
   const keyOf = it => it.id || it._k || (it._k = rid('k'));
 
@@ -36,7 +36,7 @@ const NET = (() => {
     try {
       for (let i = 0; i < up.length; i += 200) { const { error } = await db.from(TABLE).upsert(up.slice(i, i + 200)); if (error) throw error; }
       for (const [c, ids] of del) { const { error } = await db.from(TABLE).delete().eq('collection', c).in('id', ids); if (error) throw error; }
-      setStatus('live');
+      if (floorReady) setStatus('live');
     } catch (e) { setStatus('error', e.message || String(e)); up.forEach(r => snap.delete(r.collection + '\u0001' + r.id)); }
   }
   function applyRow(c, id, data) {
@@ -91,7 +91,6 @@ const NET = (() => {
       if (!user(ME) && typeof OB !== 'undefined') { OB.open = false; document.getElementById('onb').innerHTML = ''; }
       refresh(); await push();
       subscribe();
-      setStatus('live');
     } catch (e) { applying = false; setStatus('error', e.message || String(e)); }
   }
   function subscribe() {
@@ -110,7 +109,7 @@ const NET = (() => {
     // live floor
     ch = db.channel('office-floor', { config: { presence: { key: tabId }, broadcast: { self: false } } });
     let cur = {}, tT = null, lastT = 0;
-    const track = () => { clearTimeout(tT); const wait = Math.max(0, 150 - (Date.now() - lastT)); tT = setTimeout(() => { lastT = Date.now(); ch.track(cur).catch(() => {}); }, wait); };
+    const track = () => { clearTimeout(tT); const wait = Math.max(0, 150 - (Date.now() - lastT)); tT = setTimeout(() => { lastT = Date.now(); ch.track(cur).catch(e => setStatus('error', `Live floor presence failed: ${e && e.message || e}`)); }, wait); };
     CAP.room = {
       presence(p) { cur = Object.assign({}, cur, p); track(); return Promise.resolve(); },
       emit(topic, data) { return ch.send({ type: 'broadcast', event: topic, payload: { peer: tabId, data } }); },
@@ -129,13 +128,23 @@ const NET = (() => {
       known = now_;
       if (UI.route === 'office') render();
     });
-    ch.subscribe(s => { if (s === 'SUBSCRIBED') { if (typeof PX !== 'undefined') PX.netPush(true); } });
+    setStatus('connecting', 'Connecting to live floor…');
+    ch.subscribe(s => {
+      if (s === 'SUBSCRIBED') {
+        floorReady = true; setStatus('live');
+        if (typeof PX !== 'undefined') PX.netPush(true);
+      } else if (s === 'CHANNEL_ERROR' || s === 'TIMED_OUT') {
+        floorReady = false; setStatus('error', `Live floor connection: ${s}`);
+      } else if (s === 'CLOSED') {
+        floorReady = false; setStatus('offline', 'Live floor connection closed.');
+      }
+    });
   }
   function setStatus(s, msg) {
     const was = status; status = s;
     if (s === 'error' && was !== 'error') toast('Could not reach the office server', (msg || '') + ' Changes are kept on this device and sent when the connection is back.', 'bad');
-    if (s === 'offline') toast('Offline mode', msg || '', 'warn');
-    const el = document.getElementById('netdot'); if (el) { el.dataset.s = s; el.title = s; }
+    if (s === 'offline' && was !== s) toast('Offline mode', msg || '', 'warn');
+    const el = document.getElementById('netdot'); if (el) { el.dataset.s = s; el.title = msg ? `${s}: ${msg}` : s; }
   }
   return { start, schedulePush, get status() { return status; }, get ready() { return ready; } };
 })();
