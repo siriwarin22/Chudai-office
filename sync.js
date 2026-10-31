@@ -118,13 +118,14 @@ const NET = (() => {
     ch.on('broadcast', { event: 'say' }, ({ payload }) => { if (payload && typeof PX !== 'undefined') PX.remoteSay({ peer: payload.peer, data: payload.data, isMe: false }); });
     ch.on('broadcast', { event: 'dj' }, ({ payload }) => { if (payload && typeof DJ !== 'undefined') DJ.onMsg({ peer: payload.peer, data: payload.data, isMe: false }); });
     ch.on('broadcast', { event: 'voiceSignal' }, ({ payload }) => { if (payload && typeof VOICE !== 'undefined') VOICE.onSignal(payload.peer, payload.data); });
-    let known = new Set(); const seen = new Map(), startedAt = Date.now();
-    // people whose tabs are all closed are offline (checked by one tab, with a grace period)
+    let known = new Set(); const seen = new Map(); let presenceReadyAt = 0;
+    // Ignore short presence gaps so an active colleague is not sent offline while Realtime reconnects.
     const offlineCheck = () => {
       const tnow = Date.now();
       (CAP.peers || []).forEach(p => { if (p.presence.uid) seen.set(p.presence.uid, tnow); }); seen.set(ME, tnow);
-      if (!window.NET_LEADER || !ready || tnow - startedAt < 15000) return;
-      const live = new Set([...seen].filter(([, at]) => tnow - at < 20000).map(([id]) => id));
+      if (!window.NET_LEADER || !ready || !presenceReadyAt || tnow - presenceReadyAt < 30000) return;
+      S.users.forEach(u => { if (!seen.has(u.id)) seen.set(u.id, presenceReadyAt); });
+      const live = new Set([...seen].filter(([, at]) => tnow - at < 60000).map(([id]) => id));
       let changed = false;
       S.users.forEach(u => { if (!live.has(u.id) && u.status !== 'offline') { u.status = 'offline'; u.room = null; u.statusUntil = null; u.prevStatus = null; changed = true; } });
       if (changed) commit();
@@ -134,6 +135,7 @@ const NET = (() => {
       const st = ch.presenceState();
       const keys = Object.keys(st).sort();
       CAP.peers = keys.filter(k => k !== tabId).map(k => { const a = st[k]; return { peer: k, presence: a[a.length - 1] || {}, isMe: false, kind: 'viewer', by: null, guest: false }; });
+      if (!presenceReadyAt) { presenceReadyAt = Date.now(); S.users.forEach(u => seen.set(u.id, presenceReadyAt)); }
       window.NET_LEADER = keys[0] === tabId; LEADER = LEADER && window.NET_LEADER;
       const now_ = new Set(keys);
       if ([...now_].some(k => !known.has(k)) && typeof DJ !== 'undefined') DJ.onJoin();

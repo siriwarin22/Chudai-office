@@ -87,7 +87,7 @@ const plant=(x,y,big)=>add({x,y,w:1,h:1,top:big?18:12,name:'ต้นไม้',
 const shelf=(x,y,w,name='ชั้นหนังสือ',talk)=>add({x,y,w,h:1,top:14,name,talk:talk||['หนังสือคู่มือ Excel สามเล่ม กับนิยายที่ใครลืมไว้','มีแฟ้มเขียนว่า "งบ Q3 อย่าแตะ"'],draw:(g,W,H)=>{
   R(g,0,0,W,H,'#6e4422');R(g,2,2,W-4,H-4,'#8f5a2f');const cols=['#c4513f','#4a7fc1','#e8a93a','#5b9a5b','#8c5fb0','#f2e4c9'];
   for(let r=0;r<3;r++){const yy=3+r*9;R(g,2,yy+7,W-4,2,'#6e4422');for(let i=3;i<W-3;i+=3)if(hash(i+x*9,r+y)>.18)R(g,i,yy+1+((hash(i,r)*2)|0),2,7-((hash(r,i)*2)|0),cols[(hash(i*3,r+x)*6)|0])}}});
-const pod=(x,y,name,talk,mug)=>add({x,y,w:5,h:2,name,talk,draw:deskDraw((g,W,H,t)=>{R(g,W/2-1,2,2,H-8,'#8b8b8b');[6,46].forEach(m=>{monitor(g,m,4,true);monitor(g,m+12,4,true)});[6,46].forEach(m=>{monitor(g,m,15,false)});monitor(g,58,15,false);monitor(g,18,15,false);R(g,8,24,8,2,'#3a3d48');R(g,48,24,8,2,'#3a3d48');if(mug){R(g,32,14,4,5,'#e8803a');R(g,33,14,2,1,'#fff3d6')}})});
+const pod=(x,y,name,talk)=>add({x,y,w:5,h:2,name,talk,draw:deskDraw((g,W,H,t)=>{R(g,W/2-1,2,2,H-8,'#8b8b8b')})});
 
 // private offices
 desk(2,2,5,2,(g)=>{monitor(g,30,4,false);R(g,8,6,10,6,'#f6f1e3');R(g,10,8,6,1,'#9a9a9a');R(g,58,5,6,6,'#5b9a5b')},{name:'โต๊ะหัวหน้า',talk:['บนโต๊ะมีกรอบรูปแมวสามตัว','ปฏิทินวงวันนี้ไว้ด้วยปากกาแดง "ประชุม 10 โมง"']});
@@ -101,7 +101,7 @@ shelf(7,1,3);plant(9,9);plant(1,1);
 shelf(16,1,3);plant(13,1,true);plant(23,1,true);plant(27,1);
 pod(14,6,'โต๊ะทีมการตลาด',['โพสต์อิทเต็มจอ ส่วนใหญ่เขียนว่า "ด่วน!"']);
 pod(21,6,'โต๊ะทีมบัญชี',['เครื่องคิดเลขสามเครื่อง กับกองใบเสร็จ']);
-const myPod=pod(14,13,'โต๊ะของคุณ',['โต๊ะคุณเอง มีแก้วส้มใบโปรดวางอยู่'],true);
+const myPod=pod(14,13,'โต๊ะของคุณ',['โต๊ะคุณเอง มีแก้วส้มใบโปรดวางอยู่']);
 pod(21,13,'โต๊ะทีมดีไซน์',['มีโมเดลกระดาษตั้งเรียงกัน กับจอสีแม่นยำ']);
 [[15,5,'d'],[17,5,'d'],[15,8,'u'],[17,8,'u'],[22,5,'d'],[24,5,'d'],[22,8,'u'],[24,8,'u'],[15,12,'d'],[17,12,'d'],[15,15,'u'],[17,15,'u'],[22,12,'d'],[24,12,'d'],[22,15,'u'],[24,15,'u']].forEach(c=>chair(c[0],c[1],'#4a4f5c',c[2]));
 plant(12,19);plant(27,19,true);
@@ -427,7 +427,7 @@ function claimSeat(ch) {
 }
 const built = new Map();
 function buildDesk(d) {
-  const o = add({ x: d.x, y: d.y, w: 2, h: 1, name: 'Custom desk', draw: deskDraw((g) => { monitor(g, 11, 2, false); R(g, 4, 5, 5, 3, '#f6f1e3'); }) });
+  const o = add({ x: d.x, y: d.y, w: 2, h: 1, name: 'Custom desk', draw: deskDraw() });
   o.custom = d.id; o.act = ['Desk', () => deskMenu(o)];
   chair(d.x, d.y + 1, '#4a4f5c', 'u'); const c = CHAIRS[CHAIRS.length - 1]; c.custom = d.id; objs[objs.length - 1].custom = d.id;
   built.set(d.id, true);
@@ -551,7 +551,7 @@ function step(dt) {
       p.step += dt * 8; p.moving = true;
     } else {
       p.moving = false; p.wait -= dt;
-      if (p.id !== ME && p.wait <= 0 && !p.hidden) {
+      if (p.id !== ME && !window.ND_HOSTED && p.wait <= 0 && !p.hidden) {
         p.wait = 4 + Math.random() * 10;
         if (p.errand) { p.errand = null; sendTo(p, targetFor(u, p.key, p)); }
         else if (p.key === 'home' && u.status === 'online' && Math.random() < 0.15) { p.errand = true; sendTo(p, pick([{ x: 33, y: 22 }, { x: 31, y: 33 }, { x: 37, y: 22 }])); }
