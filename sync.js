@@ -11,7 +11,7 @@ const NET = (() => {
   const LOCAL_ONLY = new Set(['v', 'seededAt', 'voice', 'calls', 'gsync', 'reads']);
   const MAPS = new Set(['prefs']);
   const TABLE = 'office_docs';
-  let db = null, ch = null, snap = new Map(), pushT = null, ready = false, applying = false, status = 'connecting', floorReady = false;
+  let db = null, ch = null, snap = new Map(), pushT = null, ready = false, applying = false, status = 'connecting', statusMessage = '', floorReady = false;
   const recent = new Map(); // rows this tab just wrote: ignore their echo so a late echo cannot undo a newer local edit
   const keyOf = it => it.id || it._k || (it._k = rid('k'));
 
@@ -142,10 +142,15 @@ const NET = (() => {
   }
   function setStatus(s, msg) {
     const was = status; status = s;
+    statusMessage = msg || (s === 'live' ? 'Live floor is connected.' : s);
     if (s === 'error' && was !== 'error') toast('Could not reach the office server', (msg || '') + ' Changes are kept on this device and sent when the connection is back.', 'bad');
     if (s === 'offline' && was !== s) toast('Offline mode', msg || '', 'warn');
     const el = document.getElementById('netdot'); if (el) { el.dataset.s = s; el.title = msg ? `${s}: ${msg}` : s; }
   }
+  document.addEventListener('click', e => {
+    if (!e.target.closest || !e.target.closest('#netdot')) return;
+    toast(status === 'live' ? 'Realtime connected' : 'Realtime connection status', statusMessage || status, status === 'live' ? 'ok' : 'warn');
+  });
   return { start, schedulePush, get status() { return status; }, get ready() { return ready; } };
 })();
 
