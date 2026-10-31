@@ -168,7 +168,17 @@ const DJ = (() => {
     setTimeout(checkBlocked, 1200);
   }
   ['pointerdown', 'keydown'].forEach(ev => addEventListener(ev, resume, { passive: true }));
-  setInterval(() => { if (yp && yp.setVolume) try { yp.setVolume(volNow()); } catch (e) {} }, 400);
+  setInterval(() => {
+    if (!yp || !yp.getPlayerState) return;
+    try {
+      yp.setVolume(volNow());
+      // keep the status line and the listen button honest even if the player's events are missed
+      const s = yp.getPlayerState(), muted = yp.isMuted && yp.isMuted();
+      if (s === 1 && !muted) { stat('Playing'); tapBtn(false); }
+      else if (s === 1 && muted) { stat('Muted by the browser. Tap to listen'); tapBtn(true); }
+      else if (STATES[s]) stat(STATES[s]);
+    } catch (e) {}
+  }, 500);
   actions.djMin = () => { const el = document.getElementById('ytdock'); if (el) el.classList.toggle('min'); };
   const _tap = actions.djTap;
   actions.djTap = () => { if (yp && yp.playVideo) { const d = D(); const start = Math.max(0, (Date.now() - (d.yt && d.yt.at || Date.now())) / 1000); try { yp.unMute(); yp.seekTo(start, true); yp.setVolume(Math.max(volNow(), 1)); yp.playVideo(); } catch (e) {} setTimeout(checkBlocked, 1500); } else if (_tap) _tap(); };
