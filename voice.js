@@ -3,12 +3,23 @@ const VOICE = (() => {
   const peers = new Map();
   const HEAR_DISTANCE = 4.5 * 16;
   let stream = null;
+  let micTesting = false, testContext = null, testFrame = 0, testTimer = 0;
+  const reported = new Map();
+  function report(key, title, detail) {
+    const now = Date.now();
+    if (now - (reported.get(key) || 0) < 15000) return;
+    reported.set(key, now);
+    console.warn(`[voice] ${title}: ${detail}`);
+    toast(title, detail, 'warn');
+  }
 
   const localVoice = () => S && S.voice ? S.voice : { room: null, muted: true, deafened: false, mode: 'near' };
   const liveTrack = () => stream && stream.getAudioTracks().find(track => track.readyState === 'live') || null;
   const hasMic = () => !!liveTrack();
   const sendSignal = (peer, signal) => {
-    if (CAP.room) CAP.room.emit('voiceSignal', { to: peer, room: localVoice().room || null, signal }).catch(() => {});
+    if (CAP.room) CAP.room.emit('voiceSignal', { to: peer, room: localVoice().room || null, signal }).catch(e => {
+      report(`signal-${peer}`, 'Voice connection failed', e && e.message || 'Could not send connection data through Realtime.');
+    });
   };
   function sameContext(presence) {
     const room = localVoice().room || null, remoteRoom = presence.vr || null;
@@ -38,7 +49,10 @@ const VOICE = (() => {
     entry.audio.muted = !audible;
     entry.audio.volume = audible ? 1 : 0;
     if (audible && entry.audio.srcObject && entry.audio.paused) {
-      entry.audio.play().catch(() => { entry.playBlocked = true; });
+      entry.audio.play().catch(e => {
+        entry.playBlocked = true;
+        report(`play-${entry.id || 'remote'}`, 'Voice audio is blocked', e && e.message || 'Click the page once to allow audio playback.');
+      });
     }
   }
   function removePeer(id) {
@@ -50,16 +64,23 @@ const VOICE = (() => {
     const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
     const transceiver = pc.addTransceiver('audio', { direction: 'sendrecv' });
     const audio = document.createElement('audio'); audio.autoplay = true; audio.playsInline = true; audio.hidden = true; document.body.appendChild(audio);
-    const entry = { pc, sender: transceiver.sender, audio, presence, pendingIce: [], offerStarted: false, playBlocked: false, lastSeenAt: Date.now() };
+    const entry = { id, pc, sender: transceiver.sender, audio, presence, pendingIce: [], offerStarted: false, playBlocked: false, lastSeenAt: Date.now() };
     peers.set(id, entry);
     pc.onicecandidate = e => { if (e.candidate) sendSignal(id, { candidate: e.candidate.toJSON ? e.candidate.toJSON() : e.candidate }); };
     pc.ontrack = e => {
       audio.srcObject = e.streams && e.streams[0] ? e.streams[0] : new MediaStream([e.track]);
       setRemoteVolume(entry);
-      audio.play().catch(() => { entry.playBlocked = true; });
+      audio.play().catch(e => {
+        entry.playBlocked = true;
+        report(`play-${id}`, 'Voice audio is blocked', e && e.message || 'Click the page once to allow audio playback.');
+      });
     };
     pc.onconnectionstatechange = () => {
+      if (pc.connectionState === 'failed') report(`connection-${id}`, 'Voice connection failed', 'The browser could not establish a direct audio connection. Check both devices’ network/firewall settings.');
       if (pc.connectionState === 'failed' && peers.get(id) === entry) removePeer(id);
+    };
+    pc.oniceconnectionstatechange = () => {
+      if (pc.iceConnectionState === 'failed') report(`ice-${id}`, 'Voice network path failed', 'Realtime is connected, but audio could not cross the network.');
     };
     const track = liveTrack(); if (track) entry.sender.replaceTrack(track).catch(() => {});
     if (String(tabId) < String(id)) startOffer(id, entry);
@@ -71,7 +92,10 @@ const VOICE = (() => {
     try {
       await entry.pc.setLocalDescription(await entry.pc.createOffer());
       sendSignal(id, { description: entry.pc.localDescription.toJSON() });
-    } catch (e) { entry.offerStarted = false; }
+    } catch (e) {
+      entry.offerStarted = false;
+      report(`offer-${id}`, 'Could not start voice connection', e && e.message || String(e));
+    }
   }
   async function onSignal(from, data) {
     if (!data || !data.signal || data.to !== tabId || !from || from === tabId) return;
@@ -90,7 +114,9 @@ const VOICE = (() => {
         if (pc.remoteDescription) await pc.addIceCandidate(signal.candidate);
         else entry.pendingIce.push(signal.candidate);
       }
-    } catch (e) {}
+    } catch (e) {
+      report(`signal-receive-${from}`, 'Could not connect voice', e && e.message || String(e));
+    }
   }
   function reconcile() {
     if (!S || !user(ME) || !CAP.room || typeof RTCPeerConnection === 'undefined') return;
@@ -128,7 +154,8 @@ const VOICE = (() => {
     }
   }
   function applyMute() {
-    const v = localVoice(), track = !v.muted && !v.deafened ? liveTrack() : null;
+    if (micTesting) stopMicTest();
+    const v = localVoice(), track = !micTesting && !v.muted && !v.deafened ? liveTrack() : null;
     if (stream && !track) { stream.getTracks().forEach(t => t.stop()); stream = null; }
     peers.forEach(entry => entry.sender.replaceTrack(track).catch(() => {}));
     peers.forEach(setRemoteVolume);
@@ -141,6 +168,7 @@ const VOICE = (() => {
     applyMute(); commit(); return true;
   }
   async function toggleMic() {
+    if (micTesting) stopMicTest();
     const v = localVoice();
     if (v.muted || !hasMic()) {
       const ok = await acquireMic(); if (!ok) { v.muted = true; commit(); return false; }
@@ -152,16 +180,68 @@ const VOICE = (() => {
     }
     applyMute(); commit(); return true;
   }
+  async function testMic() {
+    if (micTesting) { stopMicTest(); return; }
+    if (!(await acquireMic())) return;
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) {
+      if (localVoice().muted || localVoice().deafened) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+      toast('Microphone test unavailable', 'This browser does not support audio level monitoring.', 'warn'); return;
+    }
+    try {
+      testContext = new AudioContextClass();
+      await testContext.resume();
+      const source = testContext.createMediaStreamSource(stream), analyser = testContext.createAnalyser();
+      analyser.fftSize = 256;
+      const silent = testContext.createGain(), samples = new Uint8Array(analyser.fftSize);
+      silent.gain.value = 0;
+      source.connect(analyser); analyser.connect(silent); silent.connect(testContext.destination);
+      micTesting = true;
+      peers.forEach(entry => entry.sender.replaceTrack(null).catch(() => {}));
+      if (typeof render === 'function') render();
+      const measure = () => {
+        if (!micTesting) return;
+        analyser.getByteTimeDomainData(samples);
+        const rms = Math.sqrt(samples.reduce((sum, sample) => sum + ((sample - 128) / 128) ** 2, 0) / samples.length);
+        const level = Math.min(100, Math.round(rms * 240));
+        const bar = document.getElementById('micTestMeter'), label = document.getElementById('micTestStatus');
+        if (bar) bar.style.width = `${level}%`;
+        if (label) label.textContent = level > 3 ? 'Microphone detected' : 'Speak to test';
+        testFrame = requestAnimationFrame(measure);
+      };
+      measure(); testTimer = setTimeout(stopMicTest, 15000);
+    } catch (e) {
+      stopMicTest();
+      toast('Microphone test failed', e && e.message || 'Check your browser audio permissions.', 'bad');
+    }
+  }
+  function stopMicTest() {
+    if (!micTesting && !testContext) return;
+    micTesting = false; cancelAnimationFrame(testFrame); clearTimeout(testTimer);
+    if (testContext) { testContext.close().catch(() => {}); testContext = null; }
+    if (stream) {
+      const v = localVoice(), track = !v.muted && !v.deafened ? liveTrack() : null;
+      peers.forEach(entry => entry.sender.replaceTrack(track).catch(() => {}));
+      if (!track) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+    }
+    if (typeof render === 'function') render();
+  }
   function resumeAudio() {
-    peers.forEach(entry => { if (entry.audio.srcObject && entry.audio.paused) entry.audio.play().catch(() => {}); });
+    peers.forEach(entry => {
+      if (entry.audio.srcObject && entry.audio.paused) entry.audio.play().then(() => { entry.playBlocked = false; }).catch(e => {
+        entry.playBlocked = true;
+        report(`play-${entry.id}`, 'Voice audio is blocked', e && e.message || 'Check this site’s sound permissions.');
+      });
+    });
   }
 
   addEventListener('pagehide', () => {
+    stopMicTest();
     if (stream) stream.getTracks().forEach(track => track.stop());
     peers.forEach((entry, id) => removePeer(id));
   });
   ['pointerdown', 'keydown'].forEach(event => addEventListener(event, resumeAudio, { passive: true }));
   setInterval(reconcile, 700);
   setTimeout(() => { if (typeof render === 'function') render(); }, 0);
-  return { hasMic, enableMic, toggleMic, applyMute, refresh, onSignal };
+  return { hasMic, enableMic, toggleMic, testMic, isTestingMic: () => micTesting, applyMute, refresh, onSignal };
 })();

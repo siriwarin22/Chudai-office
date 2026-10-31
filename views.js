@@ -106,10 +106,12 @@ function topHTML() {
 function voiceHTML() {
   const v = S.voice, r = v.room && ROOMS.find(x => x.id === v.room);
   const micNeedsSetup = !v.muted && typeof VOICE !== 'undefined' && !VOICE.hasMic();
+  const micTesting = typeof VOICE !== 'undefined' && VOICE.isTestingMic();
   return `<div class="wbox vb"><div class="vb-row"><span class="vb-room">${r ? `<span class="dot" style="background:var(--ok)"></span>${esc(r.name)} <span class="timer" data-since="${v.since || now()}"></span>` : '<span class="faint">Not in a room · walk into one</span>'}</span></div>
   <div class="vb-row"><button class="vbtn ${v.muted || micNeedsSetup ? 'off' : ''}" data-a="vMute" aria-pressed="${!v.muted && !micNeedsSetup}" title="${micNeedsSetup ? 'Click to enable microphone' : v.muted ? 'Microphone off' : 'Microphone on'}">${v.muted || micNeedsSetup ? ic('micoff') : ic('mic')}</button>
   <button class="vbtn ${v.deafened ? 'off' : ''}" data-a="vDeaf" aria-pressed="${!v.deafened}" title="${v.deafened ? 'Headphones off' : 'Headphones on'}">${ic(v.deafened ? 'headoff' : 'voice')}</button>
   ${r ? `<button class="vbtn ${v.sharing ? 'on' : ''}" data-a="vShare" title="Share screen">${ic('screen')}</button><button class="vbtn off" data-a="leaveRoom" title="Leave room">${ic('logout')}</button>` : ''}
+  </div><div class="vb-row"><button class="btn sm" data-a="testMic">${micTesting ? 'Stop mic test' : 'Test microphone'}</button><span id="micTestStatus" class="faint" style="font-size:11px;flex:1">${micTesting ? 'Speak to test' : 'Local test · no playback'}</span><span style="width:42px;height:7px;background:#ddd;border-radius:5px;overflow:hidden;flex:none"><i id="micTestMeter" style="display:block;width:0;height:100%;background:var(--ok)"></i></span>
   </div><div class="vb-row vb-mode"><button class="vmode ${v.mode !== 'shout' ? 'on' : ''}" data-a="vMode" data-v="near" title="Only people near you hear you">Nearby</button><button class="vmode ${v.mode === 'shout' ? 'on' : ''}" data-a="vMode" data-v="shout" title="Everyone in the office hears you">Shout</button><span class="vb-hear" title="People who can hear you"><span id="hearN">0</span> ${ic('users')}</span></div>
   <div class="vb-row"><form data-form="say" class="say"><input id="sayInput" name="t" maxlength="120" placeholder="Press T to talk" autocomplete="off" aria-label="Say something"></form></div>${DJ.miniHTML()}</div>`;
 }

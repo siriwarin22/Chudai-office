@@ -205,6 +205,7 @@ const A = {
   },
   leaveRoom() { const m = me(); const r = ROOMS.find(x => x.id === m.room); m.room = null; S.voice = { room: null, muted: !!S.voice.muted, deafened: !!S.voice.deafened, sharing: false, since: null }; if (typeof VOICE !== 'undefined') VOICE.refresh(); if (m.auto === 'room' || m.auto === 'meeting') restore(m); if (r) log(ME, `left ${r.name}`); commit(); },
   vMute() { if (typeof VOICE !== 'undefined') return VOICE.toggleMic(); S.voice.muted = !S.voice.muted; if (!S.voice.muted && S.voice.deafened) S.voice.deafened = false; commit(); },
+  testMic() { if (typeof VOICE !== 'undefined') return VOICE.testMic(); },
   vDeaf() { S.voice.deafened = !S.voice.deafened; if (S.voice.deafened) S.voice.muted = true; if (typeof VOICE !== 'undefined') VOICE.applyMute(); const l = S.voice.deafened ? 'Headphones off' : 'Headphones on'; PX.flash(t(l)); toast(l, S.voice.deafened ? 'You will not hear anyone. Your mic is off too.' : 'You can hear people again.', S.voice.deafened ? 'warn' : 'ok'); commit(); },
   workOn(d) { me().doing = { task: d.id }; const k = task(d.id); if (k && k.status === 'todo' && !isBlocked(k)) changeTaskStatus(k, 'progress'); toast('Status updated', 'Everyone sees what you are working on above your head.', 'ok'); log(ME, `is working on ${d.id}`, { task: d.id }); commit(); },
   clearDoing() { me().doing = null; closePop(); toast('Activity cleared', '', 'info'); commit(); },
