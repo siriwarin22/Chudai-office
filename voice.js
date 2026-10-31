@@ -250,19 +250,29 @@ const VOICE = (() => {
   }
   async function checkLink() {
     const v = localVoice(), track = liveTrack();
+    if (micTesting) { toast('Stop mic test first', 'The test intentionally disables outgoing voice.', 'warn'); return; }
     if (!peers.size) {
       toast('No voice link yet', `Mic ${v.muted || v.deafened ? 'off' : track ? 'on' : 'not detected'} · no WebRTC peer connected.`, 'warn');
       return;
     }
-    const details = await Promise.all([...peers.values()].map(async entry => {
+    const entries = [...peers.values()];
+    const readStats = async entry => {
       try {
         const stats = [...(await entry.pc.getStats()).values()];
         const out = stats.find(s => s.type === 'outbound-rtp' && (s.kind === 'audio' || s.mediaType === 'audio'));
         const incoming = stats.find(s => s.type === 'inbound-rtp' && (s.kind === 'audio' || s.mediaType === 'audio'));
         const sender = entry.sender.track;
-        return `${entry.pc.connectionState}/${entry.pc.iceConnectionState} · mic ${sender && sender.readyState === 'live' && sender.enabled ? 'attached' : 'missing'} · sent ${out ? out.packetsSent || 0 : 0} · received ${incoming ? incoming.packetsReceived || 0 : 0} · player ${entry.audio.paused ? 'paused' : 'playing'}`;
-      } catch (e) { return `${entry.pc.connectionState}/${entry.pc.iceConnectionState} · stats unavailable`; }
-    }));
+        return { out: out ? out.packetsSent || 0 : 0, incoming: incoming ? incoming.packetsReceived || 0 : 0,
+          connection: `${entry.pc.connectionState}/${entry.pc.iceConnectionState}`,
+          sender: sender && sender.readyState === 'live' && sender.enabled ? 'attached' : 'missing',
+          input: sender ? sender.muted ? 'source-muted' : 'source-live' : 'none', player: entry.audio.paused ? 'paused' : 'playing' };
+      } catch (e) { return { out: 0, incoming: 0, connection: `${entry.pc.connectionState}/${entry.pc.iceConnectionState}`, sender: 'stats unavailable', input: 'unknown', player: entry.audio.paused ? 'paused' : 'playing' }; }
+    };
+    const before = await Promise.all(entries.map(readStats));
+    toast('Voice link check', 'Speak continuously now for 3 seconds…', 'info');
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    const after = await Promise.all(entries.map(readStats));
+    const details = after.map((s, i) => `${s.connection} · mic ${s.sender}/${s.input} · sent +${Math.max(0, s.out - before[i].out)} · received +${Math.max(0, s.incoming - before[i].incoming)} · player ${s.player}`);
     toast('Voice link check', `Mic ${v.muted || v.deafened ? 'off' : track ? 'on' : 'not detected'} · ${details.join(' | ')}`, 'info');
   }
 
