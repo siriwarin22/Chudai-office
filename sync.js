@@ -106,17 +106,19 @@ const NET = (() => {
       if (row.collection === 'users' && row.id === ME && myStatus && myStatus !== 'offline' && user(ME) && user(ME).status === 'offline') { user(ME).status = myStatus; schedulePush(); }
       if (ch_) refresh();
     }).subscribe();
-    // live floor
-    ch = db.channel('office-floor', { config: { presence: { key: tabId }, broadcast: { self: false } } });
-    let cur = {}, broadcastT = null, lastBroadcast = 0;
+    // Live floor: Presence establishes membership; Broadcast carries movement.
+    let cur = {}, broadcastT = null, lastBroadcast = 0, reconnectT = null, reconnectDelay = 3000;
+    const liveUpdates = new Map();
+    let known = new Set();
     const publish = () => {
       clearTimeout(broadcastT);
       const wait = Math.max(0, 250 - (Date.now() - lastBroadcast));
       broadcastT = setTimeout(async () => {
-        if (!floorReady) return;
+        const channel = ch;
+        if (!floorReady || !channel) return;
         lastBroadcast = Date.now();
         try {
-          const result = await ch.send({ type: 'broadcast', event: 'floorState', payload: { peer: tabId, presence: cur } });
+          const result = await channel.send({ type: 'broadcast', event: 'floorState', payload: { peer: tabId, presence: cur } });
           if (result === 'ok') setStatus('live');
           else setStatus('error', `Live floor update: ${result}`);
         } catch (e) { setStatus('error', `Live floor update failed: ${e && e.message || e}`); }
@@ -124,50 +126,62 @@ const NET = (() => {
     };
     CAP.room = {
       presence(p) { cur = Object.assign({}, cur, p); publish(); return Promise.resolve(); },
-      emit(topic, data) { return ch.send({ type: 'broadcast', event: topic, payload: { peer: tabId, data } }); },
+      emit(topic, data) { return ch ? ch.send({ type: 'broadcast', event: topic, payload: { peer: tabId, data } }) : Promise.reject(new Error('Live floor is reconnecting.')); },
     };
-    ch.on('broadcast', { event: 'say' }, ({ payload }) => { if (payload && typeof PX !== 'undefined') PX.remoteSay({ peer: payload.peer, data: payload.data, isMe: false }); });
-    ch.on('broadcast', { event: 'dj' }, ({ payload }) => { if (payload && typeof DJ !== 'undefined') DJ.onMsg({ peer: payload.peer, data: payload.data, isMe: false }); });
-    ch.on('broadcast', { event: 'voiceSignal' }, ({ payload }) => { if (payload && typeof VOICE !== 'undefined') VOICE.onSignal(payload.peer, payload.data); });
-    const liveUpdates = new Map();
-    ch.on('broadcast', { event: 'floorState' }, ({ payload }) => {
-      if (!payload || !payload.peer || payload.peer === tabId || !payload.presence) return;
-      const presence = payload.presence;
-      liveUpdates.set(payload.peer, presence);
-      let peer = CAP.peers.find(p => p.peer === payload.peer);
-      if (!peer) {
-        peer = { peer: payload.peer, presence: {}, isMe: false, kind: 'viewer', by: null, guest: false };
-        CAP.peers.push(peer);
-      }
-      peer.presence = Object.assign({}, peer.presence, presence);
-    });
-    let known = new Set();
-    ch.on('presence', { event: 'sync' }, () => {
-      const st = ch.presenceState();
-      const keys = Object.keys(st).sort();
-      CAP.peers = keys.filter(k => k !== tabId).map(k => {
-        const a = st[k], presence = Object.assign({}, a[a.length - 1] || {}, liveUpdates.get(k) || {});
-        return { peer: k, presence, isMe: false, kind: 'viewer', by: null, guest: false };
+    function openFloorChannel() {
+      const channel = db.channel('office-floor', { config: { presence: { key: tabId }, broadcast: { self: false } } });
+      ch = channel;
+      channel.on('broadcast', { event: 'say' }, ({ payload }) => { if (payload && typeof PX !== 'undefined') PX.remoteSay({ peer: payload.peer, data: payload.data, isMe: false }); });
+      channel.on('broadcast', { event: 'dj' }, ({ payload }) => { if (payload && typeof DJ !== 'undefined') DJ.onMsg({ peer: payload.peer, data: payload.data, isMe: false }); });
+      channel.on('broadcast', { event: 'voiceSignal' }, ({ payload }) => { if (payload && typeof VOICE !== 'undefined') VOICE.onSignal(payload.peer, payload.data); });
+      channel.on('broadcast', { event: 'floorState' }, ({ payload }) => {
+        if (!payload || !payload.peer || payload.peer === tabId || !payload.presence) return;
+        const presence = payload.presence;
+        liveUpdates.set(payload.peer, presence);
+        let peer = CAP.peers.find(p => p.peer === payload.peer);
+        if (!peer) {
+          peer = { peer: payload.peer, presence: {}, isMe: false, kind: 'viewer', by: null, guest: false };
+          CAP.peers.push(peer);
+        }
+        peer.presence = Object.assign({}, peer.presence, presence);
       });
-      for (const id of [...liveUpdates.keys()]) if (!keys.includes(id)) liveUpdates.delete(id);
-      window.NET_LEADER = keys[0] === tabId; LEADER = LEADER && window.NET_LEADER;
-      const now_ = new Set(keys);
-      if ([...now_].some(k => !known.has(k)) && typeof DJ !== 'undefined') DJ.onJoin();
-      known = now_;
-      if (UI.route === 'office') render();
-    });
-    setStatus('connecting', 'Connecting to live floor…');
-    ch.subscribe(s => {
-      if (s === 'SUBSCRIBED') {
-        floorReady = true; setStatus('live');
-        if (typeof PX !== 'undefined') PX.netPush(true);
-        ch.track(cur).then(() => setStatus('live')).catch(e => setStatus('error', `Live floor presence failed: ${e && e.message || e}`));
-      } else if (s === 'CHANNEL_ERROR' || s === 'TIMED_OUT') {
-        floorReady = false; setStatus('error', `Live floor connection: ${s}`);
-      } else if (s === 'CLOSED') {
-        floorReady = false; setStatus('offline', 'Live floor connection closed.');
-      }
-    });
+      channel.on('presence', { event: 'sync' }, () => {
+        const st = channel.presenceState(), keys = Object.keys(st).sort();
+        CAP.peers = keys.filter(k => k !== tabId).map(k => {
+          const a = st[k], presence = Object.assign({}, a[a.length - 1] || {}, liveUpdates.get(k) || {});
+          return { peer: k, presence, isMe: false, kind: 'viewer', by: null, guest: false };
+        });
+        for (const id of [...liveUpdates.keys()]) if (!keys.includes(id)) liveUpdates.delete(id);
+        window.NET_LEADER = keys[0] === tabId; LEADER = LEADER && window.NET_LEADER;
+        const current = new Set(keys);
+        if ([...current].some(k => !known.has(k)) && typeof DJ !== 'undefined') DJ.onJoin();
+        known = current;
+        if (UI.route === 'office') render();
+      });
+      setStatus('connecting', 'Connecting to live floor…');
+      channel.subscribe(s => {
+        if (ch !== channel) return;
+        if (s === 'SUBSCRIBED') {
+          clearTimeout(reconnectT); reconnectDelay = 3000;
+          floorReady = true; setStatus('live');
+          if (typeof PX !== 'undefined') PX.netPush(true);
+          channel.track(cur).then(() => setStatus('live')).catch(e => setStatus('error', `Live floor presence failed: ${e && e.message || e}`));
+        } else if (s === 'CHANNEL_ERROR' || s === 'TIMED_OUT') {
+          floorReady = false; setStatus('error', `Live floor connection: ${s}`);
+        } else if (s === 'CLOSED') {
+          floorReady = false; setStatus('error', 'Live floor connection closed. Reconnecting…');
+          clearTimeout(reconnectT);
+          reconnectT = setTimeout(async () => {
+            if (ch !== channel) return;
+            try { await db.removeChannel(channel); } catch (e) {}
+            if (ch !== channel) return;
+            ch = null; openFloorChannel();
+            reconnectDelay = Math.min(30000, reconnectDelay * 2);
+          }, reconnectDelay);
+        }
+      });
+    }
+    openFloorChannel();
     // Browsers throttle background tabs; re-advertise the current player state
     // as soon as this tab becomes visible again without changing user status.
     document.addEventListener('visibilitychange', () => {
