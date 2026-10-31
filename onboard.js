@@ -1,6 +1,7 @@
 'use strict';
 /* Onboarding: enter office → get dressed (custom or random) → choose position → create character → decorate desk (or random, later) → into the office. */
 const OB = { open: false, step: 0, lookMode: null, dept: null, role: 'employee', title: '', name: '', deskMode: null, canCancel: false };
+const MY_CHARS_KEY = 'northdesk.myCharacters';
 const OB_STEPS = ['Enter office', 'Get dressed', 'Position', 'Create character', 'Desk', 'Into the office'];
 const ROLE_INFO = {
   employee: ['Employee', 'Work on your tasks, submit work, join rooms and meetings.'],
@@ -9,6 +10,16 @@ const ROLE_INFO = {
 };
 const DEPT_INFO = { design: 'UI, UX, graphics and brand', dev: 'Games, apps and QA', marketing: 'Campaigns, content and growth', product: 'Projects, roadmaps and backlog', ops: 'People, finance and the office' };
 const TITLES = { design: ['UI Designer', 'UX Designer', 'Graphic Designer', 'Product Designer', 'UX Researcher', 'Design Lead'], dev: ['Game Developer', 'Frontend Engineer', 'Backend Engineer', 'QA Engineer', 'Engineering Manager'], marketing: ['Content Strategist', 'Growth Marketer', 'Marketing Lead'], product: ['Project Manager', 'Product Owner (PO)', 'Product Manager', 'Scrum Master'], ops: ['HR Specialist', 'Office Manager', 'Operations Director'] };
+function myCharacterIds() {
+  let ids = [];
+  try { const saved = JSON.parse(localStorage.getItem(MY_CHARS_KEY) || '[]'); if (Array.isArray(saved)) ids = saved.filter(id => typeof id === 'string'); } catch (e) {}
+  if (ME && user(ME) && !ids.includes(ME)) { ids.push(ME); try { localStorage.setItem(MY_CHARS_KEY, JSON.stringify(ids)); } catch (e) {} }
+  return new Set(ids);
+}
+function rememberMyCharacter(id) {
+  const ids = myCharacterIds(); ids.add(id);
+  try { localStorage.setItem(MY_CHARS_KEY, JSON.stringify([...ids])); } catch (e) {}
+}
 
 function startOnboarding(fromStep = 0) {
   Object.assign(OB, { open: true, step: fromStep, lookMode: null, dept: null, role: 'employee', title: '', name: '', deskMode: null, canCancel: !!user(ME) });
@@ -27,10 +38,9 @@ function renderOnboarding(force) {
   const back = st > 0 && st < 4 ? `<button class="btn" data-a="obBack">Back</button>` : '';
   const cancel = OB.canCancel && st < 4 ? `<button class="btn" data-a="obCancel">Cancel</button>` : '';
   if (st === 0) {
-    const chars = S.users;
     body = `<h1>Welcome to Northdesk</h1><p class="lead">A pixel office for your team. Tasks, meetings, chat and calls all happen on this floor: walk to a desk, the printer or a room to use them.</p>
-      ${chars.length ? `<div class="sec" style="margin-top:16px"><span class="tag" style="color:#8a6a48">Continue as</span><div class="choice">${chars.map(u => `<button data-a="obContinue" data-id="${u.id}"><span class="row" style="flex-wrap:nowrap;gap:10px"><canvas data-obchar="${u.id}" width="16" height="24" style="width:32px;image-rendering:pixelated"></canvas><span><b style="display:block">${esc(u.name)}</b><span>${esc(u.title)} · ${esc(dept(u.dept)?.name || '')}</span></span></span></button>`).join('')}</div></div>` : ''}`;
-    foot = `<button class="btn primary" data-a="obNext">${chars.length ? 'Enter as a new person' : 'Enter office'}</button>`;
+      <p class="muted">Create your own character to join the shared office. Characters belonging to other people cannot be selected.</p>`;
+    foot = `<button class="btn primary" data-a="obNext">Create my character</button>`;
   } else if (st === 1) {
     if (!OB.lookMode) {
       body = `<h1>Get dressed</h1><p class="lead">How do you want your character to look?</p><div class="choice"><button data-a="obLook" data-v="custom"><b>Dress myself</b><span>Pick hair, skin tone, clothes and accessories.</span></button><button data-a="obLook" data-v="random"><b>Random outfit</b><span>Roll a look and shuffle until you like it.</span></button></div>`;
@@ -93,6 +103,7 @@ const OBA = {
     const u = { id, name, title, dept: OB.dept, role: OB.role, color: pick(['#2457d6', '#0f8a8a', '#c2410c', '#7a4fd0', '#15803d', '#be185d', '#b45309', '#4b5563']), status: 'online', prevStatus: null, statusUntil: null, auto: null, room: null,
       email: name.toLowerCase().replace(/[^a-z0-9]+/g, '.').replace(/^\.|\.$/g, '') + '@northdesk.example', phone: '', tz: (Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Bangkok'), joined: now(), bio: '', visibility: 'everyone', focus: null, look: Object.assign({}, PX.getEd('look')), desk: null };
     S.users.push(u);
+    rememberMyCharacter(id);
     const d = dept(OB.dept); if (d && !d.head && u.role !== 'employee') d.head = id;
     ME = id; try { localStorage.setItem(MEKEY, ME); } catch (e) {}
     S.attendance.push({ user: id, in: now(), out: null });
@@ -107,7 +118,8 @@ const OBA = {
     notify(ME, { type: 'system', title: `Welcome, ${me().name.split(' ')[0]}`, body: 'Walk to your desk and press E to open your tasks.', tone: 'ok', essential: true });
     commit(); setTimeout(() => document.querySelector('.pxcv')?.focus(), 50);
   },
-  obContinue(d) { ME = d.id; try { localStorage.setItem(MEKEY, ME); } catch (e) {} OB.open = false; document.getElementById('onb').innerHTML = ''; const u = me(); if (u.status === 'offline') u.status = 'online'; PX.spawn(ME); go('floor'); toast(`Welcome back, ${u.name.split(' ')[0]}`, '', 'ok'); commit(); },
+  obContinue(d) { if (!myCharacterIds().has(d.id)) { toast('That character belongs to someone else', 'Create your own character to join the office.', 'warn'); return; } ME = d.id; try { localStorage.setItem(MEKEY, ME); } catch (e) {} OB.open = false; document.getElementById('onb').innerHTML = ''; const u = me(); if (u.status === 'offline') u.status = 'online'; PX.spawn(ME); go('floor'); toast(`Welcome back, ${u.name.split(' ')[0]}`, '', 'ok'); commit(); },
   newChar() { UI.drawer = null; go('floor'); startOnboarding(1); render(); },
-  switchChar(d) { ME = d.id; try { localStorage.setItem(MEKEY, ME); } catch (e) {} UI.drawer = null; UI.taskScope = null; const u = me(); if (u.status === 'offline') u.status = 'online'; toast(`Now playing as ${u.name}`, `${cap(u.role)} · ${dept(u.dept)?.name || ''}`, 'info'); go('floor'); commit(); },
+  switchChar(d) { if (!myCharacterIds().has(d.id)) { toast('That character belongs to someone else', 'You can only switch between characters created in this browser.', 'warn'); return; } ME = d.id; try { localStorage.setItem(MEKEY, ME); } catch (e) {} UI.drawer = null; UI.taskScope = null; const u = me(); if (u.status === 'offline') u.status = 'online'; toast(`Now playing as ${u.name}`, `${cap(u.role)} · ${dept(u.dept)?.name || ''}`, 'info'); go('floor'); commit(); },
+  myCharacters() { return [...myCharacterIds()].map(user).filter(Boolean); },
 };
