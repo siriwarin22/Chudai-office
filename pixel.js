@@ -808,7 +808,7 @@ function objAtWorld(w) {
   const o = objs.filter(o => o.act && w.x >= o.px && w.x < o.px + o.w * T && w.y >= o.py && w.y < o.py + o.h * T + o.top).sort((a, b) => b.sy - a.sy)[0];
   return o || HOTSPOTS.find(h => tx >= h.x && tx < h.x + h.w && ty >= h.y && ty < h.y + h.h) || null;
 }
-cv.addEventListener('mousemove', e => { const w = toWorld(e); if (placing) { ghost = { x: Math.floor(w.x / T), y: Math.floor(w.y / T) }; cv.style.cursor = 'copy'; return; } const h = hit(w); hover = h && h.p ? h.p.id : null; hoverObj = h ? null : objAtWorld(w); cv.style.cursor = h || hoverObj ? 'pointer' : 'crosshair'; });
+cv.addEventListener('mousemove', e => { const w = toWorld(e); if (placing) { ghost = { x: Math.floor(w.x / T), y: Math.floor(w.y / T) };  return; } const h = hit(w); hover = h && h.p ? h.p.id : null; hoverObj = h ? null : objAtWorld(w);  });
 cv.addEventListener('mouseleave', () => { hover = null; hoverObj = null; });
 cv.addEventListener('click', e => {
   if (!user(ME)) return;
