@@ -69,9 +69,17 @@ const DJ = (() => {
     master.gain.setTargetAtTime(cur ? g : 0, AC.currentTime, 0.25);
   }
   setInterval(level, 300);
-  function share() { if (CAP.room) { const d = D(); CAP.room.emit('dj', { st: d.st, at: d.at, by: d.by, q: d.q.slice(-30), yt: d.yt }).catch(() => {}); lastBy = true; } }
+  let lastRev = 0;
+  function share() { if (CAP.room) { const d = D(); lastRev = Math.max(Date.now(), lastRev + 1); CAP.room.emit('dj', { st: d.st, at: d.at, by: d.by, q: d.q.slice(-30), yt: d.yt, rev: lastRev }).catch(() => {}); lastBy = true; } }
   function onMsg(msg) {
     if (msg.isMe) return; const x = msg.data || {}; const d = D();
+    const rev = +x.rev || 0;
+    if (rev && rev < lastRev) return;
+    // Broadcasts can arrive late (or out of order) after a newer track has already started.
+    const incomingAt = +x.yt?.at || 0, currentAt = +d.yt?.at || 0;
+    if (incomingAt && currentAt && incomingAt < currentAt) return;
+    if (rev && rev === lastRev && incomingAt === currentAt && (x.yt?.url || '') === (d.yt?.url || '') && JSON.stringify(x.q || []) === JSON.stringify(d.q || [])) return;
+    if (rev) lastRev = rev;
     d.st = st(x.st) ? x.st : null; d.at = +x.at || Date.now(); d.by = String(x.by || '').slice(0, 40);
     d.q = Array.isArray(x.q) ? x.q.filter(i => i && YT.test(String(i.url))).slice(-30).map(i => ({ id: String(i.id || rid('y')).slice(0, 20), url: String(i.url).slice(0, 200), by: String(i.by || '').slice(0, 40), at: +i.at || Date.now() })) : d.q;
     d.yt = x.yt && YT.test(String(x.yt.url)) ? { url: String(x.yt.url).slice(0, 200), by: String(x.yt.by || '').slice(0, 40), at: +x.yt.at || Date.now() } : null;
@@ -108,10 +116,40 @@ const DJ = (() => {
   const changes = { djVol(el) { LV.vol = +el.value; saveLV(); level(); const b = el.parentElement && el.parentElement.querySelector('b.num'); if (b) b.textContent = el.value + '%'; }, djNear(el) { LV.near = el.checked; saveLV(); level(); } };
   const forms = { djLink(f, fd) { const url = String(fd.get('url') || '').trim(); if (!YT.test(url)) { toast('That is not a YouTube link', 'Use a link like https://www.youtube.com/watch?v=… or https://youtu.be/…', 'warn'); return; } const x = D(); const item = { id: rid('y'), url, by: me().name, at: Date.now() }; let now = false; if (!x.yt) { x.yt = { url, by: item.by, at: Date.now() }; now = true; } else { x.q.push(item); if (x.q.length > 30) x.q.shift(); } DROP.add('djUrl'); f.reset(); share(); toast(now ? 'Now playing' : 'Added to the queue', now ? (window.ND_HOSTED ? '' : 'Press Open on YouTube to listen.') : `#${x.q.length} ${t('in line')}`, 'ok'); commit(); } };
   /* ---- hosted only: real YouTube playback, synced by start time ---- */
-  let yp = null, ypVid = '', apiState = 0, ypBlocked = false;
-  function loadApi(cb) {
-    if (window.YT && window.YT.Player) return cb();
-    if (apiState === 0) { apiState = 1; const s = document.createElement('script'); s.src = 'https://www.youtube.com/iframe_api'; document.head.appendChild(s); const prev = window.onYouTubeIframeAPIReady; window.onYouTubeIframeAPIReady = () => { apiState = 2; if (prev) prev(); player(); }; }
+  let yp = null, ypVid = '', ypTrack = '', apiState = 0, ypBlocked = false;
+  let apiStartedAt = 0, apiReadyTimer = null, apiCallbackInstalled = false, apiCallbackSeen = false;
+  const hasYTPlayer = () => typeof window.YT?.Player === 'function';
+  function apiFailed() {
+    clearTimeout(apiReadyTimer); apiReadyTimer = null; apiState = -1;
+    player();
+  }
+  function waitForYTPlayer() {
+    if (apiCallbackSeen && hasYTPlayer()) { clearTimeout(apiReadyTimer); apiReadyTimer = null; apiState = 2; player(); return; }
+    if (Date.now() - apiStartedAt >= 8000) { apiFailed(); return; }
+    if (!apiReadyTimer) apiReadyTimer = setTimeout(() => { apiReadyTimer = null; waitForYTPlayer(); }, 100);
+  }
+  function loadApi() {
+    if (apiState === 0 && hasYTPlayer()) { apiState = 2; return; }
+    if (apiState !== 0) return;
+    apiState = 1; apiStartedAt = Date.now();
+    if (!apiCallbackInstalled) {
+      const previous = window.onYouTubeIframeAPIReady;
+      let callbackHandled = false;
+      window.onYouTubeIframeAPIReady = () => {
+        if (callbackHandled) return; callbackHandled = true;
+        apiCallbackSeen = true;
+        try { if (typeof previous === 'function') previous(); } catch (e) {}
+        waitForYTPlayer();
+      };
+      apiCallbackInstalled = true;
+    }
+    let script = [...document.scripts].find(s => /^https?:\/\/(?:www\.)?youtube\.com\/iframe_api(?:[?#]|$)/i.test(s.src));
+    if (!script) {
+      script = document.createElement('script'); script.src = 'https://www.youtube.com/iframe_api'; script.async = true;
+      document.head.appendChild(script);
+    }
+    script.addEventListener('error', apiFailed, { once: true });
+    waitForYTPlayer();
   }
   function dock() {
     let el = document.getElementById('ytdock');
@@ -123,47 +161,46 @@ const DJ = (() => {
     if (!window.ND_HOSTED || !S || !user(ME)) return;
     const d = D(), el = dock(), vid = d.yt ? ytId(d.yt.url) : '';
     el.hidden = !vid; const op = document.getElementById('ytopen'); if (op && d.yt) op.href = d.yt.url;
-    if (!vid) { if (yp || ypVid) teardown(); return; }
+    if (!vid) { if (yp || ypVid || fallback) teardown(); return; }
+    const track = `${vid}:${+d.yt.at || 0}`;
     // if the player is not answering commands, a new song means a fresh player (otherwise the old song or ad keeps playing)
-    if (yp && vid !== ypVid && !apiAlive) teardown();
+    if (yp && track !== ypTrack && !apiAlive) teardown();
     const start = Math.max(0, Math.floor((Date.now() - (d.yt.at || Date.now())) / 1000));
-    if (fallback) { if (vid !== ypVid) useFallback(vid, start); return; }
-    if (!(window.YT && window.YT.Player)) { if (!loadApi.t0) loadApi.t0 = Date.now(); if (Date.now() - loadApi.t0 > 8000) { useFallback(vid, start); return; } stat('Loading player…'); return loadApi(player); }
+    if (fallback) { if (track !== ypTrack) useFallback(vid, start, track); return; }
+    if (apiState === -1) { useFallback(vid, start, track); return; }
+    if (apiState === 0 && hasYTPlayer()) apiState = 2;
+    if (apiState !== 2 || !hasYTPlayer()) { if (apiStartedAt && Date.now() - apiStartedAt >= 8000) { useFallback(vid, start, track); return; } stat('Loading player…'); loadApi(); return; }
     if (!yp) {
-      ypVid = vid;
-      // build the iframe ourselves so YouTube always gets this site's origin as referrer (otherwise: Error 153)
+      ypVid = vid; ypTrack = track;
       const box = document.getElementById('ytplayer'); if (!box) return;
-      const ifr = document.createElement('iframe');
-      ifr.id = 'ytplayer'; ifr.title = 'DJ';
-      ifr.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
-      ifr.setAttribute('allow', 'autoplay; encrypted-media; picture-in-picture');
-      ifr.src = `https://www.youtube.com/embed/${encodeURIComponent(vid)}?enablejsapi=1&autoplay=1&start=${start}&playsinline=1&rel=0&origin=${encodeURIComponent(location.origin)}&widget_referrer=${encodeURIComponent(location.href)}`;
-      ifr.addEventListener('load', () => { if (!apiAlive) { stat('Playing'); tapBtn(false); } });
-      box.replaceWith(ifr);
-      yp = new YT.Player('ytplayer', {
-        events: {
-          onReady: e => { apiAlive = true; stat('Ready'); try { e.target.unMute(); e.target.setVolume(volNow()); e.target.playVideo(); } catch (er) {} setTimeout(checkBlocked, 1800); },
-          onStateChange: e => { apiAlive = true; stat(STATES[e.data] || 'Ready'); if (e.data === 1) { if (e.target.isMuted && e.target.isMuted() && volNow() > 0) { ypBlocked = true; tapBtn(true); } else { ypBlocked = false; tapBtn(false); } } else if (e.data === -1 || e.data === 5) tapBtn(true); else tapBtn(false); if (e.data === 0 && window.NET_LEADER !== false) actions.djSkip({ auto: true }); },
-          onError: e => { stat(`This video cannot play here (code ${e.data}). Skipping…`); setTimeout(() => { if (window.NET_LEADER !== false) actions.djSkip({ auto: true }); }, 3000); },
-        } });
+      try {
+        yp = new window.YT.Player('ytplayer', {
+          videoId: vid,
+          playerVars: { autoplay: 1, start, playsinline: 1, rel: 0, origin: location.origin, widget_referrer: location.href },
+          events: {
+            onReady: e => { if (e.target !== yp) return; apiAlive = true; stat('Ready'); try { e.target.unMute(); e.target.setVolume(volNow()); e.target.playVideo(); } catch (er) {} setTimeout(checkBlocked, 1800); },
+            onStateChange: e => { if (e.target !== yp) return; apiAlive = true; stat(STATES[e.data] || 'Ready'); if (e.data === 1) { if (e.target.isMuted && e.target.isMuted() && volNow() > 0) { ypBlocked = true; tapBtn(true); } else { ypBlocked = false; tapBtn(false); } } else if (e.data === -1 || e.data === 5) tapBtn(true); else tapBtn(false); if (e.data === 0 && e.target.getVideoData && e.target.getVideoData().video_id === ytId(D().yt?.url) && window.NET_LEADER !== false) actions.djSkip({ auto: true }); },
+            onError: e => { if (e.target !== yp) return; stat(`This video cannot play here (code ${e.data}). Skipping…`); setTimeout(() => { if (e.target === yp && e.target.getVideoData && e.target.getVideoData().video_id === ytId(D().yt?.url) && window.NET_LEADER !== false) actions.djSkip({ auto: true }); }, 3000); },
+          } });
+      } catch (e) { yp = null; apiState = -1; useFallback(vid, start, track); }
       return;
     }
-    if (vid !== ypVid && yp.loadVideoById) { ypVid = vid; tapBtn(false); stat('Loading player…'); yp.loadVideoById({ videoId: vid, startSeconds: start }); setTimeout(checkBlocked, 1800); }
+    if (track !== ypTrack && yp.loadVideoById) { ypVid = vid; ypTrack = track; tapBtn(false); stat('Loading player…'); yp.loadVideoById({ videoId: vid, startSeconds: start }); setTimeout(checkBlocked, 1800); }
   }
   function stat(t_) { const s = document.getElementById('ytstat'); if (s && s.textContent !== t(t_)) s.textContent = t(t_); }
   const STATES = { '-1': 'Ready, waiting to start', 0: 'Song ended', 1: 'Playing', 2: 'Paused', 3: 'Buffering…', 5: 'Ready, waiting to start' };
   let fallback = false, apiAlive = false;
-  function useFallback(vid, start) {
+  function useFallback(vid, start, track = `${vid}:${+D().yt?.at || 0}`) {
     // the YouTube control script did not load: show YouTube's own player so its play button works
     fallback = true; const box = document.querySelector('#ytdock .ytframe'); if (!box) return;
     box.innerHTML = `<iframe referrerpolicy="strict-origin-when-cross-origin" src="https://www.youtube.com/embed/${encodeURIComponent(vid)}?autoplay=1&start=${start}&playsinline=1&rel=0&origin=${encodeURIComponent(location.origin)}" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen title="DJ"></iframe>`;
-    ypVid = vid; stat('Press ▶ in the video to listen');
+    ypVid = vid; ypTrack = track; stat('Press ▶ in the video to listen');
   }
   function teardown() {
     try { if (yp && yp.destroy) yp.destroy(); } catch (e) {}
     const box = document.querySelector('#ytdock .ytframe');
     if (box) { box.querySelectorAll('iframe').forEach(f => f.remove()); const old = document.getElementById('ytplayer'); if (old) old.remove(); const div = document.createElement('div'); div.id = 'ytplayer'; box.prepend(div); }
-    yp = null; ypVid = ''; apiAlive = false; fallback = false; tapBtn(false);
+    yp = null; ypVid = ''; ypTrack = ''; apiAlive = false; fallback = false; tapBtn(false);
   }
   function tapBtn(on) { const b = document.querySelector('#ytdock .yttap'); if (b) b.hidden = !on; }
   function checkBlocked() { if (!yp || !yp.getPlayerState || !apiAlive) return; const s = yp.getPlayerState(); const muted = yp.isMuted && yp.isMuted(); if (((s === -1 || s === 5) || muted) && D().yt) { ypBlocked = true; tapBtn(true); stat(muted ? 'Muted by the browser. Tap to listen' : 'Blocked by the browser. Tap to listen'); } else tapBtn(false); }
