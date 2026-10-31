@@ -115,7 +115,7 @@ const DJ = (() => {
   }
   function dock() {
     let el = document.getElementById('ytdock');
-    if (!el) { el = document.createElement('div'); el.id = 'ytdock'; el.className = 'ytdock wbox'; el.innerHTML = `<div class="ytbar"><span>♪ DJ</span><span style="flex:1"></span><button type="button" data-a="djSkip" title="Skip">⏭</button><button type="button" data-a="djMin" title="Hide video">–</button></div><div class="ytframe"><div id="ytplayer"></div><button type="button" class="yttap" data-a="djTap" hidden>▶ Tap to listen</button></div>`; document.body.appendChild(el); }
+    if (!el) { el = document.createElement('div'); el.id = 'ytdock'; el.className = 'ytdock wbox'; el.innerHTML = `<div class="ytbar"><span>♪ DJ</span><span style="flex:1"></span><button type="button" data-a="djSkip" title="Skip">⏭</button><button type="button" data-a="djMin" title="Hide video">–</button></div><div class="ytframe"><div id="ytplayer"></div><button type="button" class="yttap" data-a="djTap">▶ Tap to listen</button></div>`; document.body.appendChild(el); }
     return el;
   }
   const volNow = () => { const d = D(); let g = d.vol; if (d.near && typeof PX !== 'undefined') { const a = PX.myPos(), b = PX.boothPos(); if (a) { const dist = Math.hypot(a.x - b.x, a.y - b.y) / 16; g *= Math.max(0.12, Math.min(1, 1.15 - dist / 18)); } } if (S.voice && S.voice.deafened) g = 0; return Math.round(g); };
@@ -130,20 +130,30 @@ const DJ = (() => {
       ypVid = vid;
       yp = new YT.Player('ytplayer', { width: '100%', height: '100%', videoId: vid, playerVars: { autoplay: 1, start, playsinline: 1, rel: 0, modestbranding: 1 },
         events: {
-          onReady: e => { e.target.setVolume(volNow()); e.target.playVideo(); setTimeout(checkBlocked, 1800); },
-          onStateChange: e => { if (e.data === 1) { ypBlocked = false; tapBtn(false); } if (e.data === 0 && window.NET_LEADER !== false) actions.djSkip({ auto: true }); },
+          onReady: e => { try { e.target.unMute(); e.target.setVolume(volNow()); e.target.playVideo(); } catch (er) {} setTimeout(checkBlocked, 1800); },
+          onStateChange: e => { if (e.data === 1) { if (e.target.isMuted && e.target.isMuted() && volNow() > 0) { ypBlocked = true; tapBtn(true); } else { ypBlocked = false; tapBtn(false); } } else if (e.data !== 3) tapBtn(true); if (e.data === 0 && window.NET_LEADER !== false) actions.djSkip({ auto: true }); },
           onError: () => { if (window.NET_LEADER !== false) actions.djSkip({ auto: true }); },
         } });
       return;
     }
-    if (vid !== ypVid && yp.loadVideoById) { ypVid = vid; yp.loadVideoById({ videoId: vid, startSeconds: start }); setTimeout(checkBlocked, 1800); }
+    if (vid !== ypVid && yp.loadVideoById) { ypVid = vid; tapBtn(true); yp.loadVideoById({ videoId: vid, startSeconds: start }); setTimeout(checkBlocked, 1800); }
   }
   function tapBtn(on) { const b = document.querySelector('#ytdock .yttap'); if (b) b.hidden = !on; }
-  function checkBlocked() { if (!yp || !yp.getPlayerState) return; const s = yp.getPlayerState(); if (s !== 1 && s !== 3 && D().yt) { ypBlocked = true; tapBtn(true); } }
+  function checkBlocked() { if (!yp || !yp.getPlayerState) return; const s = yp.getPlayerState(); const muted = yp.isMuted && yp.isMuted(); if ((s !== 1 || muted) && D().yt) { ypBlocked = true; tapBtn(true); } else tapBtn(false); }
+  // browsers (Brave, Safari, Chrome) only allow sound after the person interacts: any click or key on the page starts the music
+  function resume() {
+    if (!yp || !yp.getPlayerState || !D().yt || volNow() === 0) return;
+    const s = yp.getPlayerState(), muted = yp.isMuted && yp.isMuted();
+    if (s === 1 && !muted) return;
+    const d = D(); const start = Math.max(0, (Date.now() - (d.yt.at || Date.now())) / 1000);
+    try { yp.unMute(); yp.setVolume(volNow()); if (s !== 1) { yp.seekTo(start, true); yp.playVideo(); } } catch (e) {}
+    setTimeout(checkBlocked, 1200);
+  }
+  ['pointerdown', 'keydown'].forEach(ev => addEventListener(ev, resume, { passive: true }));
   setInterval(() => { if (yp && yp.setVolume) try { yp.setVolume(volNow()); } catch (e) {} }, 400);
   actions.djMin = () => { const el = document.getElementById('ytdock'); if (el) el.classList.toggle('min'); };
   const _tap = actions.djTap;
-  actions.djTap = () => { if (yp && yp.playVideo) { const d = D(); const start = Math.max(0, (Date.now() - (d.yt && d.yt.at || Date.now())) / 1000); try { yp.seekTo(start, true); yp.setVolume(volNow()); yp.playVideo(); } catch (e) {} tapBtn(false); } else if (_tap) _tap(); };
+  actions.djTap = () => { if (yp && yp.playVideo) { const d = D(); const start = Math.max(0, (Date.now() - (d.yt && d.yt.at || Date.now())) / 1000); try { yp.unMute(); yp.seekTo(start, true); yp.setVolume(Math.max(volNow(), 1)); yp.playVideo(); } catch (e) {} setTimeout(checkBlocked, 1500); } else if (_tap) _tap(); };
   function boot() { const d = D(); d.st = null; }
   setInterval(() => { if (window.ND_HOSTED) player(); }, 1500);
   return { player, STATIONS, view, miniHTML, actions, changes, forms, onMsg, onJoin, playing, boot, level };
