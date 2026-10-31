@@ -88,7 +88,7 @@ const OBA = {
   obCreate() {
     const name = (document.getElementById('obName')?.value || '').trim();
     if (!name) { toast('Type your name', 'It is shown above your character.', 'warn'); document.getElementById('obName')?.focus(); return; }
-    let n = S.users.length + 1, id = 'u' + n; while (user(id)) id = 'u' + (++n);
+    let id = 'u' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); while (user(id)) id += 'x';
     const title = OB.title.trim() || (TITLES[OB.dept] || ['Team member'])[0];
     const u = { id, name, title, dept: OB.dept, role: OB.role, color: pick(['#2457d6', '#0f8a8a', '#c2410c', '#7a4fd0', '#15803d', '#be185d', '#b45309', '#4b5563']), status: 'online', prevStatus: null, statusUntil: null, auto: null, room: null,
       email: name.toLowerCase().replace(/[^a-z0-9]+/g, '.').replace(/^\.|\.$/g, '') + '@northdesk.example', phone: '', tz: (Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Bangkok'), joined: now(), bio: '', visibility: 'everyone', focus: null, look: Object.assign({}, PX.getEd('look')), desk: null };

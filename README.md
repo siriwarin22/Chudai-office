@@ -20,6 +20,30 @@
 | `views.js` | หน้าต่างของแต่ละโมดูล |
 | `onboard.js` | ขั้นตอนสร้างตัวละคร |
 | `actions.js` | ปุ่ม ฟอร์ม และการเริ่มต้นแอป |
+| `sync.js` | เชื่อม Supabase: ข้อมูลรวมทั้งทีม + เห็นกันเดินแบบสด |
 
-## สถานะตอนนี้
-ข้อมูลเก็บในเบราว์เซอร์ของแต่ละคน (localStorage) ขั้นต่อไปคือเชื่อม Supabase ให้ทุกคนใช้ข้อมูลชุดเดียวกันและเห็นกันเดินแบบเรียลไทม์
+## ระบบเรียลไทม์ (Supabase)
+- ข้อมูลทุกอย่าง (ตัวละคร งาน แชท ประชุม โต๊ะ คิวเพลง ฯลฯ) เก็บเป็นแถวในตาราง `office_docs` และอัปเดตสดผ่าน Realtime
+- ตำแหน่งตัวละคร สถานะ ไมค์ บับเบิลข้อความ และบูธดีเจ ส่งผ่าน Realtime channel `office-floor`
+- ตั้งค่า URL และ publishable key ไว้ด้านบนของ `sync.js`
+- ถ้าเชื่อมต่อไม่ได้ แอปยังใช้งานได้ในเครื่อง (จุดสีมุมขวาบน: เขียว = เชื่อมต่อแล้ว, แดง = ไม่ได้เชื่อมต่อ)
+
+ตาราง (รันใน SQL Editor ของ Supabase):
+```sql
+create table public.office_docs (
+  collection text not null,
+  id text not null,
+  data jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now(),
+  primary key (collection, id)
+);
+alter table public.office_docs enable row level security;
+create policy "office read"   on public.office_docs for select using (true);
+create policy "office insert" on public.office_docs for insert with check (true);
+create policy "office update" on public.office_docs for update using (true);
+create policy "office delete" on public.office_docs for delete using (true);
+alter publication supabase_realtime add table public.office_docs;
+grant select, insert, update, delete on public.office_docs to anon, authenticated;
+```
+
+> ไม่มีระบบล็อกอิน: ใครมีลิงก์ก็เข้าและแก้ข้อมูลได้ อย่าใส่ข้อมูลลับ

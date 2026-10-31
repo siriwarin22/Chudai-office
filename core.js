@@ -142,7 +142,7 @@ if (bc) bc.onmessage = (e) => {
 };
 function electLeader() {
   for (const [k, v] of peers) if (now() - v > 7000) peers.delete(k);
-  LEADER = [...peers.keys(), tabId].sort()[0] === tabId;
+  LEADER = [...peers.keys(), tabId].sort()[0] === tabId && window.NET_LEADER !== false;
 }
 setInterval(() => { try { bc && bc.postMessage({ t: 'hb', from: tabId }); } catch (e) {} electLeader(); }, 3000);
 
@@ -535,6 +535,7 @@ async function askAI(prompt, json) {
   catch (e) { if (e && e.code === 'not_granted') CAP.sample = null; return { error: e && (e.message || e.code) || 'failed' }; }
 }
 async function saveFile(filename, data) {
+  if (!CAP.dl && window.ND_HOSTED) { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([data])); a.download = filename; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000); toast('Saved ' + filename, '', 'ok'); return; }
   if (!CAP.dl) { toast('Downloads are not available here', 'Open the workspace on claude.ai to save files.', 'warn'); return; }
   try { await CAP.dl.save({ filename, data }); toast('Saved ' + filename, '', 'ok'); }
   catch (e) { if (e && e.code !== 'declined') toast('Could not save the file', e.message || e.code, 'bad'); }

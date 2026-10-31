@@ -215,6 +215,8 @@ const TH = {
   'Skip': 'ข้ามเพลง', 'Up next': 'เพลงถัดไป', 'Play now': 'เล่นตอนนี้', 'Move up': 'เลื่อนขึ้น', 'Move down': 'เลื่อนลง', 'Skipped to the next song': 'ข้ามไปเพลงถัดไปแล้ว', 'Queue finished': 'คิวหมดแล้ว',
   'Paste a link to keep the music going.': 'วางลิงก์เพื่อเปิดเพลงต่อ', 'Everyone sees it in the DJ booth.': 'ทุกคนเห็นในบูธดีเจ', 'Press Open on YouTube to listen.': 'กด "เปิดใน YouTube" เพื่อฟัง', 'in line': 'ในคิว',
   'Paste a YouTube link below. It starts as the current song right away.': 'วางลิงก์ YouTube ด้านล่าง เพลงจะขึ้นเป็นเพลงปัจจุบันทันที',
+  'Songs play inside the office for everyone at the same time. When a song ends, the next one in the queue starts.': 'เพลงเล่นในออฟฟิศให้ทุกคนฟังพร้อมกัน จบเพลงแล้วจะเล่นเพลงถัดไปในคิวอัตโนมัติ',
+  'Could not reach the office server': 'เชื่อมต่อเซิร์ฟเวอร์ออฟฟิศไม่ได้', 'Offline mode': 'โหมดออฟไลน์', 'Could not load the realtime library.': 'โหลดระบบเรียลไทม์ไม่สำเร็จ', 'Hide video': 'ซ่อนวิดีโอ', 'Connection': 'การเชื่อมต่อ',
   // menu page
   'Every module of the office. You can also walk to objects on the floor: desks, shelves, printer, reception, clock and more.': 'ทุกโมดูลของออฟฟิศ หรือเดินไปที่ของในออฟฟิศได้ เช่น โต๊ะ ชั้นหนังสือ เครื่องพิมพ์ แผนกต้อนรับ นาฬิกา',
   'On the floor': 'บนชั้นออฟฟิศ', 'Lobby sofa': 'โซฟารับแขก', 'Cabinets': 'ตู้เอกสาร', 'Any room': 'ห้องไหนก็ได้', 'Walk in to join its voice room': 'เดินเข้าเพื่อเข้าห้องเสียง', 'Focus 25 min': 'โฟกัส 25 นาที',

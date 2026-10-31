@@ -68,7 +68,7 @@ function followLink(l) {
   if (l.route) go(l.route);
 }
 function go(r) { if (location.hash !== '#' + r) location.hash = r; else { UI.route = r; render(); } }
-const dmId = uid => { const id = 'dm:' + [ME, uid].sort((a, b) => +a.slice(1) - +b.slice(1)).join(':'); if (!S.chats.find(c => c.id === id)) S.chats.push({ id, kind: 'dm', members: [ME, uid] }); return id; };
+const dmId = uid => { const id = 'dm:' + [ME, uid].sort().join(':'); if (!S.chats.find(c => c.id === id)) S.chats.push({ id, kind: 'dm', members: [ME, uid] }); return id; };
 
 /* ================= shell ================= */
 const NAV = [
@@ -101,7 +101,7 @@ function topHTML() {
   <button class="wbox hud-btn" data-a="openAI" aria-label="Assistant">${ic('spark')}</button>
   <button class="wbox hud-btn" data-a="pxZoom" data-v="${PX.mode === 'fit' ? 'follow' : 'fit'}" aria-label="${PX.mode === 'fit' ? 'Follow my character' : 'Show whole office'} (M)">${ic(PX.mode === 'fit' ? 'target' : 'office')}</button>
   <button class="wbox hud-btn" data-a="lang" aria-label="Language: ${LANG === 'th' ? 'Thai' : 'English'}"><b class="notr">${LANG === 'th' ? 'TH' : 'EN'}</b></button>
-  <div class="wbox hud-clock"><div class="t num" data-clock>${fTime(now())}</div><div class="d">${WD[d.getDay()]} ${d.getDate()} ${MON[d.getMonth()]}</div></div>`;
+  <div class="wbox hud-clock">${window.ND_HOSTED ? `<span id="netdot" data-s="${typeof NET !== 'undefined' ? NET.status : 'connecting'}" title="Connection" style="float:left;margin:6px 8px 0 0"></span>` : ''}<div class="t num" data-clock>${fTime(now())}</div><div class="d">${WD[d.getDay()]} ${d.getDate()} ${MON[d.getMonth()]}</div></div>`;
 }
 function voiceHTML() {
   const v = S.voice, r = v.room && ROOMS.find(x => x.id === v.room);
@@ -174,7 +174,7 @@ function toReview() { return S.submissions.filter(s => s.status === 'pending' &&
 /* ---------- Online Office ---------- */
 VIEWS.office = () => {
   const m = me();
-  const live = CAP.room ? `<section class="card"><div class="bd row" style="justify-content:space-between"><span class="row"><span class="live">Live</span><b>${CAP.peers.length} ${CAP.peers.length === 1 ? 'person has' : 'people have'} this workspace open right now</b></span><span class="row">${CAP.peers.slice(0, 10).map(p => { const pr = p.by && CAP.profiles[p.by]; return `<span class="row" style="gap:6px" title="${esc((pr && pr.name) || 'Viewer')}${p.isMe ? ' (you)' : ''}">${pr && pr.avatarUrl ? `<img src="${esc(pr.avatarUrl)}" alt="" style="width:26px;height:26px;border-radius:50%">` : `<span class="av sm" style="background:var(--slate)">?</span>`}<span style="font-size:12.5px">${esc((pr && pr.name) || 'Viewer')}${p.isMe ? ' (you)' : ''}${p.presence && p.presence.status ? ' · ' + esc((PRES[p.presence.status] || {}).l || '') : ''}</span></span>`; }).join('')}</span></div></section>` : '';
+  const live = CAP.room ? `<section class="card"><div class="bd row" style="justify-content:space-between"><span class="row"><span class="live">Live</span><b>${CAP.peers.length} ${CAP.peers.length === 1 ? 'person has' : 'people have'} this workspace open right now</b></span><span class="row">${CAP.peers.slice(0, 10).map(p => { const pr = p.by && CAP.profiles[p.by]; const nm = (pr && pr.name) || (p.presence && p.presence.n) || 'Viewer'; return `<span class="row" style="gap:6px" title="${esc(nm)}${p.isMe ? ' (you)' : ''}">${pr && pr.avatarUrl ? `<img src="${esc(pr.avatarUrl)}" alt="" style="width:26px;height:26px;border-radius:50%">` : `<span class="av sm" style="background:var(--slate)">?</span>`}<span style="font-size:12.5px">${esc(nm)}${p.isMe ? ' (you)' : ''}${p.presence && p.presence.status ? ' · ' + esc((PRES[p.presence.status] || {}).l || '') : ''}</span></span>`; }).join('')}</span></div></section>` : '';
   const groups = { all: 'Everyone', available: 'Available', busy: 'Busy & focused', away: 'Away & offline' };
   const filt = UI.presTab;
   const people = S.users.filter(u => { const s = shownStatus(u); return filt === 'all' || (filt === 'available' && s === 'online') || (filt === 'busy' && ['busy', 'dnd', 'focus', 'meeting'].includes(s)) || (filt === 'away' && ['away', 'offline'].includes(s)); });

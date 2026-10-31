@@ -585,15 +585,17 @@ function kbMove(p, dt) {
 /* ---------- live players: other people who have this office open right now ---------- */
 const RP = new Map();
 let lastNet = 0, lastNetStr = '';
-function netPush() {
+function netPush(force) {
+  if (force) { lastNetStr = ''; lastNet = 0; }
   if (!CAP.room || !user(ME)) return;
   const p = P.get(ME), u = me(); if (!p) return;
   const t = Date.now(); if (t - lastNet < 160) return;
-  const pres = { n: u.name.slice(0, 40), t: (u.title || '').slice(0, 40), lk: lookOf(u), x: Math.round(p.x), y: Math.round(p.y), d: p.dir, s: u.status, m: !!p.moving, mu: !!S.voice.muted, df: !!S.voice.deafened, w: (activityOf(u, true) || { text: '' }).text.slice(0, 40), wk: (activityOf(u, true) || { kind: '' }).kind };
+  const pres = { uid: ME, n: u.name.slice(0, 40), t: (u.title || '').slice(0, 40), lk: lookOf(u), x: Math.round(p.x), y: Math.round(p.y), d: p.dir, s: u.status, m: !!p.moving, mu: !!S.voice.muted, df: !!S.voice.deafened, w: (activityOf(u, true) || { text: '' }).text.slice(0, 40), wk: (activityOf(u, true) || { kind: '' }).kind };
   const str = JSON.stringify(pres); if (str === lastNetStr) return;
   lastNet = t; lastNetStr = str;
   CAP.room.presence(pres).catch(() => {});
 }
+const liveIds = () => { const s = new Set(); RP.forEach(r => { if (r.uid) s.add(r.uid); }); s.delete(ME); return s; };
 function syncRemote(dt) {
   const seen = new Set();
   (CAP.peers || []).forEach(pe => {
@@ -603,7 +605,7 @@ function syncRemote(dt) {
     if (!r) { r = { peer: pe.peer, x: pr.x, y: pr.y, step: 0 }; RP.set(pe.peer, r); }
     r.tx = Math.max(0, Math.min(MW * T, +pr.x || 0)); r.ty = Math.max(0, Math.min(MH * T, +pr.y || 0));
     r.dir = ['u', 'd', 'l', 'r'].includes(pr.d) ? pr.d : 'd'; r.s = PRES[pr.s] ? pr.s : 'online';
-    r.mu = !!pr.mu; r.df = !!pr.df; r.w = String(pr.w || '').slice(0, 40); r.wk = ['task', 'custom', 'focus', 'meeting', 'break', 'view', 'room'].includes(pr.wk) ? pr.wk : 'custom';
+    r.uid = String(pr.uid || '').slice(0, 20); r.mu = !!pr.mu; r.df = !!pr.df; r.w = String(pr.w || '').slice(0, 40); r.wk = ['task', 'custom', 'focus', 'meeting', 'break', 'view', 'room'].includes(pr.wk) ? pr.wk : 'custom';
     r.n = String(pr.n || 'Guest').slice(0, 40); r.t = String(pr.t || '').slice(0, 40); r.guest = !!pe.guest;
     const lk = pr.lk && typeof pr.lk === 'object' ? pr.lk : {}; const safe = {};
     for (const k in LOOKOPT) safe[k] = LOOKOPT[k].includes(lk[k]) || (LOOKOPT[k][0][0] === '#' && /^#[0-9a-f]{6}$/i.test(lk[k] || '')) ? lk[k] : LOOKOPT[k][0];
@@ -675,8 +677,9 @@ function draw(t) {
   if (me_ && !me_.hidden && !me_.moving && !seatP) { const f = facing(me_); const a = actAt(f.x, f.y); if (a) prompt = a; }
   const hl = hoverObj || prompt;
   if (hl) { ctx.fillStyle = 'rgba(255,230,120,.28)'; ctx.fillRect(hl.x * T, hl.y * T - (hl.top || 0), (hl.w || 1) * T, (hl.h || 1) * T + (hl.top || 0)); }
+  const LIVE = liveIds();
   P.forEach(p => {
-    if (p.hidden) return; const u = user(p.id); if (!u) return;
+    if (p.hidden || LIVE.has(p.id)) return; const u = user(p.id); if (!u) return;
     const fr = p.moving ? [0, 1, 0, 2][Math.floor(p.step) % 4] : 0;
     const seat = p.moving ? null : seatedInfo(p.x, p.y, p.dir);
     const working = !!(seat && seat.atDesk && ['online', 'busy', 'dnd'].includes(u.status));
@@ -693,7 +696,7 @@ function draw(t) {
   const fs = Math.max(10.5, Math.min(13, 11 * s / dpr)) * dpr;
   ctx.font = `600 ${fs}px Figtree, system-ui, sans-serif`; ctx.textBaseline = 'middle';
   const pill = (x, y, text, bg, fg, center) => { const w = ctx.measureText(text).width + fs * 0.9, h = fs * 1.6; const X = center ? x - w / 2 : x; ctx.fillStyle = bg; rr(X, y - h / 2, w, h, h / 2); ctx.fill(); ctx.fillStyle = fg; ctx.fillText(text, X + fs * 0.45, y + 0.5); return w; };
-  const counts = {}; P.forEach(p => { if (p.hidden) return; const tl = tileOf(p), z = zoneOf(tl.x, tl.y); if (z) counts[z[4]] = (counts[z[4]] || 0) + 1; });
+  const counts = {}; P.forEach(p => { if (p.hidden || LIVE.has(p.id)) return; const tl = tileOf(p), z = zoneOf(tl.x, tl.y); if (z) counts[z[4]] = (counts[z[4]] || 0) + 1; });
   RP.forEach(r => { const z = zoneOf(Math.floor(r.x / T), Math.floor((r.y - 4) / T)); if (z) counts[z[4]] = (counts[z[4]] || 0) + 1; });
   PZ.forEach(z => { if (['work', 'restroom'].includes(z[4])) return; const myPod = user(ME) && ((z[4] === 'designpod' && me().dept === 'design') || (z[4] === 'productpod' && ['product', 'ops'].includes(me().dept)) || (z[4] === me().dept && ['dev', 'marketing'].includes(z[4]))); const x = ox + (z[0] * T + 3) * s, y = oy + (z[1] * T + 6) * s; const n = counts[z[4]] || 0; pill(x, y + fs * 0.4, t_(z[5]) + (n ? ' · ' + n : '') + (myPod ? ' · ' + t_('your team') : ''), myPod ? 'rgba(47,107,63,.92)' : ROOMKEYS.includes(z[4]) ? 'rgba(36,87,214,.88)' : 'rgba(30,24,20,.72)', '#fff'); });
   const micBadge = (bx, by, kind) => {
@@ -717,7 +720,7 @@ function draw(t) {
     if (bubble && bubble.until > Date.now()) { const by = ly - fs * 0.15; if (bubble.mode === 'shout') { ctx.font = `800 ${fs * 1.15}px Figtree, system-ui, sans-serif`; pill(sx, by - fs * 0.2, bubble.text + ' !', 'rgba(255,214,90,.98)', '#3a2313', true); ctx.font = `600 ${fs}px Figtree, system-ui, sans-serif`; } else if (bubble.mode === 'far') pill(sx, by, bubble.text, 'rgba(255,255,255,.55)', '#55606e', true); else if (bubble.mode === 'sys') { const k = Math.min(1, (bubble.until - Date.now()) / 600); ctx.globalAlpha = k; pill(sx, by - (1 - k) * fs, bubble.text, 'rgba(255,250,235,.97)', '#3a2313', true); ctx.globalAlpha = 1; } else { ctx.font = `italic 500 ${fs * 0.95}px Figtree, system-ui, sans-serif`; pill(sx, by, bubble.text, 'rgba(240,247,255,.96)', '#2a3a55', true); ctx.font = `600 ${fs}px Figtree, system-ui, sans-serif`; } }
     if (st === 'focus') { ctx.fillStyle = 'rgba(139,108,240,.9)'; ctx.fillText('z', sx - 8 * s, sy - 2 * s + Math.sin(t / 400) * 2 * s); }
   };
-  P.forEach(p => { if (p.hidden) return; const u = user(p.id); if (!u) return; head(p.x, p.y, p.id === ME ? t_('You') : u.name.split(' ')[0] + ' · ' + t_(PRES[u.status].l), u.status, p.id === ME, false, p.bubble, p.id === ME || hover === p.id, activityOf(u, p.id === ME), p.id === ME && S.voice.muted, p.id === ME && S.voice.deafened); });
+  P.forEach(p => { if (p.hidden || LIVE.has(p.id)) return; const u = user(p.id); if (!u) return; head(p.x, p.y, p.id === ME ? t_('You') : u.name.split(' ')[0] + ' · ' + t_(PRES[u.status].l), u.status, p.id === ME, false, p.bubble, p.id === ME || hover === p.id, activityOf(u, p.id === ME), p.id === ME && S.voice.muted, p.id === ME && S.voice.deafened); });
   RP.forEach(r => head(r.x, r.y, r.n.split(' ')[0] + ' · ' + t_('Live'), r.s, false, true, r.bubble, true, r.w ? { kind: r.wk, text: r.w } : null, r.mu, r.df));
   if (seatP && me_) { const sx = ox + me_.x * s, sy = oy + (me_.y + 6) * s; pill(sx, sy + fs, (seatP.can ? 'E · ' : '') + t_(seatP.label), 'rgba(247,223,172,.97)', '#3a2313', true); }
   if (placing) { pill(cv.width / 2, oy > 0 ? oy + fs * 2 : fs * 5, t_('Click an empty spot on the floor. Esc to cancel.'), 'rgba(47,107,63,.95)', '#fff', true); }
@@ -799,7 +802,7 @@ function drawChar(look, x, y, dir, fr, seat, working, t, seed) {
 }
 function rr(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
 function toWorld(e) { const r = cv.getBoundingClientRect(), dpr = devicePixelRatio || 1; return { x: ((e.clientX - r.left) * dpr - view.ox) / view.s, y: ((e.clientY - r.top) * dpr - view.oy) / view.s }; }
-function hit(w) { let best = null; P.forEach(p => { if (!p.hidden && Math.abs(w.x - p.x) < 7 && w.y > p.y - 23 && w.y < p.y + 2) if (!best || p.y > best.y) best = { p }; }); RP.forEach(r => { if (Math.abs(w.x - r.x) < 7 && w.y > r.y - 23 && w.y < r.y + 2) best = { r }; }); return best; }
+function hit(w) { let best = null; const LIVE = liveIds(); P.forEach(p => { if (!p.hidden && !LIVE.has(p.id) && Math.abs(w.x - p.x) < 7 && w.y > p.y - 23 && w.y < p.y + 2) if (!best || p.y > best.y) best = { p }; }); RP.forEach(r => { if (Math.abs(w.x - r.x) < 7 && w.y > r.y - 23 && w.y < r.y + 2) best = { r }; }); return best; }
 function objAtWorld(w) {
   const tx = Math.floor(w.x / T), ty = Math.floor(w.y / T);
   const o = objs.filter(o => o.act && w.x >= o.px && w.x < o.px + o.w * T && w.y >= o.py && w.y < o.py + o.h * T + o.top).sort((a, b) => b.sy - a.sy)[0];
@@ -811,7 +814,7 @@ cv.addEventListener('click', e => {
   if (!user(ME)) return;
   const w = toWorld(e), h = hit(w), p = P.get(ME); if (!p) return;
   if (placing) { const gx = Math.floor(w.x / T), gy = Math.floor(w.y / T); if (!validDesk(gx, gy)) { toast(t_('This spot is not free'), t_('Pick an empty patch of floor, 2 by 2 tiles.'), 'warn'); return; } (S.desks || (S.desks = [])).push({ id: rid('desk'), x: gx, y: gy, by: ME, at: now() }); placing = false; ghost = null; log(ME, 'added a desk'); toast(t_('Desk added'), t_('Sit on its chair and press E to make it yours.'), 'ok'); commit(); return; }
-  if (h && h.r) return showRemote(h.r);
+  if (h && h.r) return h.r.uid && user(h.r.uid) ? openDrawer('user', h.r.uid) : showRemote(h.r);
   if (h) { if (h.p.id === ME) openEditor('look'); else openDrawer('user', h.p.id); return; }
   const o = objAtWorld(w);
   if (o) {
