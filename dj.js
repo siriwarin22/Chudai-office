@@ -129,7 +129,15 @@ const DJ = (() => {
     if (!(window.YT && window.YT.Player)) { if (!loadApi.t0) loadApi.t0 = Date.now(); if (Date.now() - loadApi.t0 > 8000) { useFallback(vid, start); return; } stat('Loading player…'); return loadApi(player); }
     if (!yp) {
       ypVid = vid;
-      yp = new YT.Player('ytplayer', { width: '100%', height: '100%', videoId: vid, playerVars: { autoplay: 1, start, playsinline: 1, rel: 0, modestbranding: 1 },
+      // build the iframe ourselves so YouTube always gets this site's origin as referrer (otherwise: Error 153)
+      const box = document.getElementById('ytplayer'); if (!box) return;
+      const ifr = document.createElement('iframe');
+      ifr.id = 'ytplayer'; ifr.title = 'DJ';
+      ifr.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
+      ifr.setAttribute('allow', 'autoplay; encrypted-media; picture-in-picture');
+      ifr.src = `https://www.youtube.com/embed/${encodeURIComponent(vid)}?enablejsapi=1&autoplay=1&start=${start}&playsinline=1&rel=0&origin=${encodeURIComponent(location.origin)}&widget_referrer=${encodeURIComponent(location.href)}`;
+      box.replaceWith(ifr);
+      yp = new YT.Player('ytplayer', {
         events: {
           onReady: e => { stat('Ready'); try { e.target.unMute(); e.target.setVolume(volNow()); e.target.playVideo(); } catch (er) {} setTimeout(checkBlocked, 1800); },
           onStateChange: e => { stat(STATES[e.data] || 'Ready'); if (e.data === 1) { if (e.target.isMuted && e.target.isMuted() && volNow() > 0) { ypBlocked = true; tapBtn(true); } else { ypBlocked = false; tapBtn(false); } } else if (e.data !== 3) tapBtn(true); if (e.data === 0 && window.NET_LEADER !== false) actions.djSkip({ auto: true }); },
@@ -145,7 +153,7 @@ const DJ = (() => {
   function useFallback(vid, start) {
     // the YouTube control script did not load: show YouTube's own player so its play button works
     fallback = true; const box = document.querySelector('#ytdock .ytframe'); if (!box) return;
-    box.innerHTML = `<iframe src="https://www.youtube.com/embed/${encodeURIComponent(vid)}?autoplay=1&start=${start}&playsinline=1&rel=0" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen title="DJ"></iframe>`;
+    box.innerHTML = `<iframe referrerpolicy="strict-origin-when-cross-origin" src="https://www.youtube.com/embed/${encodeURIComponent(vid)}?autoplay=1&start=${start}&playsinline=1&rel=0&origin=${encodeURIComponent(location.origin)}" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen title="DJ"></iframe>`;
     ypVid = vid; stat('Press ▶ in the video to listen');
   }
   function tapBtn(on) { const b = document.querySelector('#ytdock .yttap'); if (b) b.hidden = !on; }
