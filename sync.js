@@ -108,20 +108,48 @@ const NET = (() => {
     }).subscribe();
     // live floor
     ch = db.channel('office-floor', { config: { presence: { key: tabId }, broadcast: { self: false } } });
-    let cur = {}, tT = null, lastT = 0;
-    const track = () => { clearTimeout(tT); const wait = Math.max(0, 150 - (Date.now() - lastT)); tT = setTimeout(() => { lastT = Date.now(); ch.track(cur).catch(e => setStatus('error', `Live floor presence failed: ${e && e.message || e}`)); }, wait); };
+    let cur = {}, broadcastT = null, lastBroadcast = 0;
+    const publish = () => {
+      clearTimeout(broadcastT);
+      const wait = Math.max(0, 250 - (Date.now() - lastBroadcast));
+      broadcastT = setTimeout(async () => {
+        if (!floorReady) return;
+        lastBroadcast = Date.now();
+        try {
+          const result = await ch.send({ type: 'broadcast', event: 'floorState', payload: { peer: tabId, presence: cur } });
+          if (result === 'ok') setStatus('live');
+          else setStatus('error', `Live floor update: ${result}`);
+        } catch (e) { setStatus('error', `Live floor update failed: ${e && e.message || e}`); }
+      }, wait);
+    };
     CAP.room = {
-      presence(p) { cur = Object.assign({}, cur, p); track(); return Promise.resolve(); },
+      presence(p) { cur = Object.assign({}, cur, p); publish(); return Promise.resolve(); },
       emit(topic, data) { return ch.send({ type: 'broadcast', event: topic, payload: { peer: tabId, data } }); },
     };
     ch.on('broadcast', { event: 'say' }, ({ payload }) => { if (payload && typeof PX !== 'undefined') PX.remoteSay({ peer: payload.peer, data: payload.data, isMe: false }); });
     ch.on('broadcast', { event: 'dj' }, ({ payload }) => { if (payload && typeof DJ !== 'undefined') DJ.onMsg({ peer: payload.peer, data: payload.data, isMe: false }); });
     ch.on('broadcast', { event: 'voiceSignal' }, ({ payload }) => { if (payload && typeof VOICE !== 'undefined') VOICE.onSignal(payload.peer, payload.data); });
+    const liveUpdates = new Map();
+    ch.on('broadcast', { event: 'floorState' }, ({ payload }) => {
+      if (!payload || !payload.peer || payload.peer === tabId || !payload.presence) return;
+      const presence = payload.presence;
+      liveUpdates.set(payload.peer, presence);
+      let peer = CAP.peers.find(p => p.peer === payload.peer);
+      if (!peer) {
+        peer = { peer: payload.peer, presence: {}, isMe: false, kind: 'viewer', by: null, guest: false };
+        CAP.peers.push(peer);
+      }
+      peer.presence = Object.assign({}, peer.presence, presence);
+    });
     let known = new Set();
     ch.on('presence', { event: 'sync' }, () => {
       const st = ch.presenceState();
       const keys = Object.keys(st).sort();
-      CAP.peers = keys.filter(k => k !== tabId).map(k => { const a = st[k]; return { peer: k, presence: a[a.length - 1] || {}, isMe: false, kind: 'viewer', by: null, guest: false }; });
+      CAP.peers = keys.filter(k => k !== tabId).map(k => {
+        const a = st[k], presence = Object.assign({}, a[a.length - 1] || {}, liveUpdates.get(k) || {});
+        return { peer: k, presence, isMe: false, kind: 'viewer', by: null, guest: false };
+      });
+      for (const id of [...liveUpdates.keys()]) if (!keys.includes(id)) liveUpdates.delete(id);
       window.NET_LEADER = keys[0] === tabId; LEADER = LEADER && window.NET_LEADER;
       const now_ = new Set(keys);
       if ([...now_].some(k => !known.has(k)) && typeof DJ !== 'undefined') DJ.onJoin();
@@ -133,6 +161,7 @@ const NET = (() => {
       if (s === 'SUBSCRIBED') {
         floorReady = true; setStatus('live');
         if (typeof PX !== 'undefined') PX.netPush(true);
+        ch.track(cur).then(() => setStatus('live')).catch(e => setStatus('error', `Live floor presence failed: ${e && e.message || e}`));
       } else if (s === 'CHANNEL_ERROR' || s === 'TIMED_OUT') {
         floorReady = false; setStatus('error', `Live floor connection: ${s}`);
       } else if (s === 'CLOSED') {
@@ -144,11 +173,6 @@ const NET = (() => {
     document.addEventListener('visibilitychange', () => {
       if (document.hidden || !ch) return;
       if (typeof PX !== 'undefined') PX.netPush(true);
-      if (floorReady) setTimeout(() => {
-        ch.track(cur).then(() => setStatus('live')).catch(e => {
-          setStatus('error', `Live floor presence failed: ${e && e.message || e}`);
-        });
-      }, 200);
     });
   }
   function setStatus(s, msg) {
