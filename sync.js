@@ -139,6 +139,17 @@ const NET = (() => {
         floorReady = false; setStatus('offline', 'Live floor connection closed.');
       }
     });
+    // Browsers throttle background tabs; re-advertise the current player state
+    // as soon as this tab becomes visible again without changing user status.
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden || !ch) return;
+      if (typeof PX !== 'undefined') PX.netPush(true);
+      if (floorReady) setTimeout(() => {
+        ch.track(cur).then(() => setStatus('live')).catch(e => {
+          setStatus('error', `Live floor presence failed: ${e && e.message || e}`);
+        });
+      }, 200);
+    });
   }
   function setStatus(s, msg) {
     const was = status; status = s;
