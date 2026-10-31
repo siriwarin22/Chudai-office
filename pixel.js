@@ -533,6 +533,7 @@ function sync() {
       p = { id: u.id, x: 0, y: 0, dir: 'd', step: 0, path: [], key, hidden: key === 'exit', bubble: null, wait: 0, errand: null };
       P.set(u.id, p);
       place(p, key === 'exit' ? DOOR : targetFor(u, key, p));
+      if (u.id === ME && !p.hidden && zoneOf(tileOf(p).x, tileOf(p).y)?.[4] === 'designpod') joinDesignPodVoice();
       return;
     }
     if (key === p.key) return;
