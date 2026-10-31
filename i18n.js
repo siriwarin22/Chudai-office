@@ -219,6 +219,7 @@ const TH = {
   'Could not reach the office server': 'เชื่อมต่อเซิร์ฟเวอร์ออฟฟิศไม่ได้', 'Offline mode': 'โหมดออฟไลน์', 'Could not load the realtime library.': 'โหลดระบบเรียลไทม์ไม่สำเร็จ', 'Hide video': 'ซ่อนวิดีโอ', 'Connection': 'การเชื่อมต่อ',
   'Loading player…': 'กำลังโหลดตัวเล่น…', 'Ready, waiting to start': 'พร้อม รอเริ่มเล่น', 'Song ended': 'จบเพลงแล้ว', 'Paused': 'หยุดชั่วคราว', 'Buffering…': 'กำลังโหลดเพลง…', 'Ready': 'พร้อม',
   'Press ▶ in the video to listen': 'กด ▶ ในวิดีโอเพื่อฟัง', 'Muted by the browser. Tap to listen': 'เบราว์เซอร์ปิดเสียงไว้ กดเพื่อฟัง', 'Blocked by the browser. Tap to listen': 'เบราว์เซอร์บล็อกเสียง กดเพื่อฟัง', '🔊 Tap to listen': '🔊 กดเพื่อฟัง',
+  '⏭ Skip': '⏭ ข้ามเพลง', '⏭ Stop': '⏭ หยุด',
   // menu page
   'Every module of the office. You can also walk to objects on the floor: desks, shelves, printer, reception, clock and more.': 'ทุกโมดูลของออฟฟิศ หรือเดินไปที่ของในออฟฟิศได้ เช่น โต๊ะ ชั้นหนังสือ เครื่องพิมพ์ แผนกต้อนรับ นาฬิกา',
   'On the floor': 'บนชั้นออฟฟิศ', 'Lobby sofa': 'โซฟารับแขก', 'Cabinets': 'ตู้เอกสาร', 'Any room': 'ห้องไหนก็ได้', 'Walk in to join its voice room': 'เดินเข้าเพื่อเข้าห้องเสียง', 'Focus 25 min': 'โฟกัส 25 นาที',
