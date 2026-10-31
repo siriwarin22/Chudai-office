@@ -105,8 +105,9 @@ function topHTML() {
 }
 function voiceHTML() {
   const v = S.voice, r = v.room && ROOMS.find(x => x.id === v.room);
+  const micNeedsSetup = !v.muted && typeof VOICE !== 'undefined' && !VOICE.hasMic();
   return `<div class="wbox vb"><div class="vb-row"><span class="vb-room">${r ? `<span class="dot" style="background:var(--ok)"></span>${esc(r.name)} <span class="timer" data-since="${v.since || now()}"></span>` : '<span class="faint">Not in a room · walk into one</span>'}</span></div>
-  <div class="vb-row"><button class="vbtn ${v.muted ? 'off' : ''}" data-a="vMute" aria-pressed="${!v.muted}" title="${v.muted ? 'Microphone off' : 'Microphone on'}">${ic(v.muted ? 'micoff' : 'mic')}</button>
+  <div class="vb-row"><button class="vbtn ${v.muted || micNeedsSetup ? 'off' : ''}" data-a="vMute" aria-pressed="${!v.muted && !micNeedsSetup}" title="${micNeedsSetup ? 'Click to enable microphone' : v.muted ? 'Microphone off' : 'Microphone on'}">${v.muted || micNeedsSetup ? ic('micoff') : ic('mic')}</button>
   <button class="vbtn ${v.deafened ? 'off' : ''}" data-a="vDeaf" aria-pressed="${!v.deafened}" title="${v.deafened ? 'Headphones off' : 'Headphones on'}">${ic(v.deafened ? 'headoff' : 'voice')}</button>
   ${r ? `<button class="vbtn ${v.sharing ? 'on' : ''}" data-a="vShare" title="Share screen">${ic('screen')}</button><button class="vbtn off" data-a="leaveRoom" title="Leave room">${ic('logout')}</button>` : ''}
   </div><div class="vb-row vb-mode"><button class="vmode ${v.mode !== 'shout' ? 'on' : ''}" data-a="vMode" data-v="near" title="Only people near you hear you">Nearby</button><button class="vmode ${v.mode === 'shout' ? 'on' : ''}" data-a="vMode" data-v="shout" title="Everyone in the office hears you">Shout</button><span class="vb-hear" title="People who can hear you"><span id="hearN">0</span> ${ic('users')}</span></div>
@@ -327,17 +328,18 @@ VIEWS.voice = () => {
   const roomsList = `<div class="grid g4">${ROOMS.map(r => { const ppl = S.users.filter(u => u.room === r.id); return `<section class="card room ${v.room === r.id ? 'mine' : ''}"><div class="rh"><span class="ricon">${ic(r.icon)}</span><div style="flex:1;min-width:0"><b>${r.name}</b><div class="muted" style="font-size:12.5px">${ppl.length} connected</div></div>${v.room === r.id ? '<span class="live">You</span>' : `<button class="btn sm" data-a="joinRoom" data-id="${r.id}">Join</button>`}</div><div class="list">${ppl.map(u => `<div class="row" style="padding:3px 0;flex-wrap:nowrap">${av(u.id, 'sm')}<span class="ell" style="font-size:13px">${esc(u.name)}</span>${u.id === ME && v.muted ? ic('micoff', 'muted').replace('<svg ', '<svg width="13" height="13" ') : ''}</div>`).join('') || '<span class="faint" style="font-size:12.5px">Nobody here</span>'}</div></section>`; }).join('')}</div>`;
   const stage = room ? (() => {
     const ppl = S.users.filter(u => u.room === room.id);
-    return `<section class="card"><div class="hd"><span class="ricon">${ic(room.icon)}</span><h2>${room.name} <span class="muted num" style="font-weight:500">· <span class="timer" data-since="${v.since || now()}"></span></span></h2><span class="sim">Simulated audio</span></div>
+    const micNeedsSetup = !v.muted && typeof VOICE !== 'undefined' && !VOICE.hasMic();
+    return `<section class="card"><div class="hd"><span class="ricon">${ic(room.icon)}</span><h2>${room.name} <span class="muted num" style="font-weight:500">· <span class="timer" data-since="${v.since || now()}"></span></span></h2><span class="live">Live audio</span></div>
     <div class="bd"><div class="vstage">${v.sharing ? `<div class="tile screen"><span class="pill blue">${ic('screen')} You are sharing your screen</span><span class="muted" style="font-size:12.5px">Others see your window here</span></div>` : ''}
-    ${ppl.map(u => `<div class="tile" data-speaker="${u.id}">${av(u.id, 'xl', false)}<b style="font-size:13px">${esc(u.name)}${u.id === ME ? ' (you)' : ''}</b><span class="mic">${(u.id === ME && v.muted) ? `<span class="pill red">${ic('micoff').replace('<svg ', '<svg width="12" height="12" ')}</span>` : ''}</span></div>`).join('')}</div></div>
-    <div class="ctrls"><button class="btn ${v.muted ? 'redon' : ''}" data-a="vMute" aria-pressed="${v.muted}">${ic(v.muted ? 'micoff' : 'mic')}${v.muted ? 'Unmute' : 'Mute'}</button>
+    ${ppl.map(u => `<div class="tile" data-speaker="${u.id}">${av(u.id, 'xl', false)}<b style="font-size:13px">${esc(u.name)}${u.id === ME ? ' (you)' : ''}</b><span class="mic">${(u.id === ME && (v.muted || micNeedsSetup)) ? `<span class="pill red">${ic('micoff').replace('<svg ', '<svg width="12" height="12" ')}</span>` : ''}</span></div>`).join('')}</div></div>
+    <div class="ctrls"><button class="btn ${v.muted ? 'redon' : ''}" data-a="vMute" aria-pressed="${v.muted}">${ic(v.muted || micNeedsSetup ? 'micoff' : 'mic')}${micNeedsSetup ? 'Enable microphone' : v.muted ? 'Unmute' : 'Mute'}</button>
       <button class="btn ${v.deafened ? 'redon' : ''}" data-a="vDeaf" aria-pressed="${v.deafened}">${ic(v.deafened ? 'headoff' : 'voice')}${v.deafened ? 'Undeafen' : 'Deafen'}</button>
       <button class="btn ${v.sharing ? 'on' : ''}" data-a="vShare" aria-pressed="${v.sharing}">${ic('screen')}${v.sharing ? 'Stop sharing' : 'Share screen'}</button>
       <button class="btn" data-a="attachChat" data-room="1">${ic('clip')}Share file</button>
       <button class="btn redon" data-a="leaveRoom">${ic('logout')}Leave</button></div></section>`;
   })() : '';
   const callable = S.users.filter(u => u.id !== ME).sort((a, b) => (shownStatus(a) === 'online' ? 0 : 1) - (shownStatus(b) === 'online' ? 0 : 1));
-  return phead('Voice Rooms', 'Drop-in rooms like a shared office. Audio is simulated in this demo: there is no microphone access here.', `<button class="btn" data-a="testCall">${ic('phone')}Simulate incoming call</button>`)
+  return phead('Voice Rooms', 'Talk live in shared rooms or nearby on the office floor. Allow microphone access when prompted.', `<button class="btn" data-a="testCall">${ic('phone')}Simulate incoming call</button>`)
   + stage + roomsList
   + card('Call a colleague', `<div class="list">${callable.map(u => `<div class="li">${av(u.id)}<div class="grow"><b>${esc(u.name)}</b><div>${presPill(u)}</div></div><button class="btn sm" data-a="dm" data-id="${u.id}">${ic('chat')}</button><button class="btn sm" data-a="call" data-id="${u.id}">${ic('phone')}Call</button></div>`).join('')}</div>`, { flush: true });
 };

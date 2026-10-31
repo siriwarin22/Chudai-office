@@ -177,7 +177,7 @@ const LOOKOPT = {
   bottom: ['pants', 'shorts', 'skirt'],
   bottomColor: ['#2b2d3a', '#3a4660', '#4b5563', '#6b4426', '#c8b28a', '#1f3a5f', '#7a2e2e', '#e9e4da'],
   acc: ['none', 'glasses', 'round', 'shades'],
-  hat: ['none', 'cap', 'beanie', 'headphones', 'flower'],
+  hat: ['none', 'cap', 'beanie', 'headphones', 'flower', 'beret', 'cowboy', 'straw', 'topHat', 'wizard', 'witch', 'crown', 'mushroom', 'frog', 'animalEars', 'hood', 'helmet', 'bucket', 'sailor', 'tiara', 'leafCrown', 'chef', 'hardHat', 'viking', 'turban', 'bandana', 'bow', 'flowerCrown', 'halo', 'pumpkin', 'skull', 'mask'],
   hatColor: ['#c4513f', '#2457d6', '#1b8f4e', '#e8b13a', '#1f2430', '#d0569a', '#f2ede4'],
 };
 const LOOKS = {
@@ -271,6 +271,30 @@ function sprite(L, dir, f) {
     if (L.hat === 'beanie') { R(g, 3, 0, 10, 4, HC); R(g, 3, 3, 10, 1, shade(HC, 0.3)); R(g, 7, -1 + 1, 2, 1, shade(HC, -0.2)); }
     if (L.hat === 'headphones') { R(g, 3, 1, 10, 1, HC); if (!side) { R(g, 1, 6, 2, 4, HC); R(g, 13, 6, 2, 4, HC); } else R(g, Lf ? 9 : 5, 5, 3, 4, HC); }
     if (L.hat === 'flower') { const fx = side ? (Lf ? 10 : 3) : 11; R(g, fx, 2, 3, 3, HC); R(g, fx + 1, 3, 1, 1, '#fff6c8'); }
+    if (L.hat === 'beret') { R(g, 3, 2, 10, 2, HC); R(g, 5, 0, 7, 2, HC); R(g, 4, 3, 9, 1, shade(HC, -0.25)); R(g, 9, 0, 1, 1, shade(HC, 0.3)); }
+    if (L.hat === 'cowboy') { R(g, 1, 4, 14, 1, shade(HC, -0.28)); R(g, 3, 2, 10, 2, HC); R(g, 5, 0, 6, 2, HC); R(g, 6, 2, 4, 1, shade(HC, -0.2)); }
+    if (L.hat === 'straw') { R(g, 1, 4, 14, 1, '#8a5a2c'); R(g, 2, 3, 12, 1, HC); R(g, 4, 1, 8, 2, HC); R(g, 6, 0, 4, 1, shade(HC, 0.2)); R(g, 3, 3, 10, 1, shade(HC, -0.15)); }
+    if (L.hat === 'topHat') { R(g, 3, 4, 10, 1, shade(HC, -0.25)); R(g, 4, 1, 8, 3, HC); R(g, 5, 0, 6, 1, HC); R(g, 5, 1, 1, 2, shade(HC, 0.25)); }
+    if (L.hat === 'wizard' || L.hat === 'witch') { R(g, 2, 4, 12, 1, shade(HC, -0.25)); R(g, 4, 3, 8, 1, HC); R(g, 5, 2, 6, 1, HC); R(g, 7, 1, 3, 1, HC); R(g, 8, 0, 2, 1, HC); if (L.hat === 'witch') R(g, 6, 3, 4, 1, '#e8b13a'); else R(g, 8, 2, 1, 1, '#e8b13a'); }
+    if (L.hat === 'crown' || L.hat === 'tiara') { R(g, 3, 3, 10, 2, HC); R(g, 3, 1, 2, 2, HC); R(g, 7, 0, 2, 3, HC); R(g, 11, 1, 2, 2, HC); R(g, 4, 3, 8, 1, shade(HC, 0.28)); if (L.hat === 'tiara') R(g, 7, 2, 2, 1, '#d0569a'); else { R(g, 5, 2, 1, 1, '#c4513f'); R(g, 10, 2, 1, 1, '#2457d6'); } }
+    if (L.hat === 'mushroom') { R(g, 2, 3, 12, 2, shade(HC, -0.25)); R(g, 3, 1, 10, 2, HC); R(g, 5, 0, 6, 1, HC); R(g, 5, 2, 2, 1, '#f2ede4'); R(g, 10, 1, 2, 1, '#f2ede4'); }
+    if (L.hat === 'frog') { R(g, 3, 2, 10, 3, HC); R(g, 4, 1, 3, 2, HC); R(g, 9, 1, 3, 2, HC); R(g, 5, 1, 1, 1, '#f2ede4'); R(g, 10, 1, 1, 1, '#f2ede4'); R(g, 5, 1, 1, 1, '#2b2220'); R(g, 10, 1, 1, 1, '#2b2220'); }
+    if (L.hat === 'animalEars') { R(g, 3, 2, 10, 2, HC); R(g, 3, 0, 3, 3, HC); R(g, 10, 0, 3, 3, HC); R(g, 4, 1, 1, 1, shade(HC, 0.35)); R(g, 11, 1, 1, 1, shade(HC, 0.35)); }
+    if (L.hat === 'hood') { R(g, 2, 2, 2, 7, HC); R(g, 12, 2, 2, 7, HC); R(g, 3, 0, 10, 3, HC); R(g, 3, 2, 10, 1, shade(HC, 0.22)); }
+    if (L.hat === 'helmet' || L.hat === 'hardHat') { R(g, 3, 2, 10, 3, HC); R(g, 4, 1, 8, 1, HC); R(g, 6, 0, 4, 1, HC); R(g, 2, 4, 12, 1, shade(HC, -0.25)); if (L.hat === 'helmet') R(g, 6, 3, 4, 1, '#8fd0dc'); else R(g, 7, 1, 2, 1, '#fff0a8'); }
+    if (L.hat === 'bucket') { R(g, 2, 3, 12, 1, shade(HC, -0.25)); R(g, 4, 1, 8, 2, HC); R(g, 5, 0, 6, 1, HC); R(g, 4, 3, 8, 1, shade(HC, 0.2)); }
+    if (L.hat === 'sailor') { R(g, 3, 2, 10, 3, HC); R(g, 5, 1, 6, 1, HC); R(g, 3, 4, 10, 1, '#f2ede4'); R(g, 7, 1, 2, 1, '#c4513f'); }
+    if (L.hat === 'leafCrown') { R(g, 3, 3, 10, 1, shade(HC, -0.25)); [[3,2],[5,1],[7,2],[9,1],[11,2]].forEach(([x,y],i) => { R(g, x, y, 2, 2, i % 2 ? shade(HC, 0.2) : HC); }); }
+    if (L.hat === 'chef') { R(g, 4, 3, 8, 2, HC); R(g, 3, 1, 4, 3, HC); R(g, 6, 0, 4, 4, HC); R(g, 9, 1, 4, 3, HC); R(g, 4, 4, 8, 1, shade(HC, -0.2)); }
+    if (L.hat === 'viking') { R(g, 3, 3, 10, 2, HC); R(g, 4, 1, 8, 2, HC); R(g, 2, 0, 2, 3, '#f2ede4'); R(g, 12, 0, 2, 3, '#f2ede4'); R(g, 3, 0, 1, 2, shade(HC, 0.25)); R(g, 12, 0, 1, 2, shade(HC, 0.25)); }
+    if (L.hat === 'turban') { R(g, 3, 2, 10, 3, HC); R(g, 4, 0, 8, 2, HC); R(g, 5, 1, 6, 1, shade(HC, 0.25)); R(g, 7, 1, 2, 2, shade(HC, -0.2)); R(g, 8, 1, 1, 1, '#e8b13a'); }
+    if (L.hat === 'bandana') { R(g, 3, 2, 10, 2, HC); R(g, 3, 3, 2, 2, HC); if (side) R(g, Lf ? 11 : 3, 3, 4, 2, shade(HC, -0.2)); else R(g, 12, 3, 2, 3, shade(HC, -0.2)); }
+    if (L.hat === 'bow') { R(g, 5, 1, 3, 3, HC); R(g, 9, 1, 3, 3, HC); R(g, 8, 2, 1, 2, shade(HC, -0.2)); R(g, 6, 2, 1, 1, shade(HC, 0.3)); R(g, 10, 2, 1, 1, shade(HC, 0.3)); }
+    if (L.hat === 'flowerCrown') { R(g, 3, 3, 10, 1, shade(HC, -0.25)); [[3,2],[6,1],[9,2],[11,1]].forEach(([x,y],i) => { R(g, x, y, 2, 2, i % 2 ? '#e8b13a' : HC); R(g, x + 1, y, 1, 1, '#f2ede4'); }); }
+    if (L.hat === 'halo') { R(g, 5, 0, 6, 1, '#e8b13a'); R(g, 4, 1, 1, 1, '#e8b13a'); R(g, 11, 1, 1, 1, '#e8b13a'); R(g, 5, 2, 6, 1, '#e8b13a'); }
+    if (L.hat === 'pumpkin') { R(g, 4, 2, 8, 3, HC); R(g, 3, 3, 1, 2, shade(HC, -0.15)); R(g, 12, 3, 1, 2, shade(HC, -0.15)); R(g, 7, 0, 2, 2, '#4c8f3f'); R(g, 6, 1, 1, 1, '#4c8f3f'); R(g, 6, 3, 1, 2, shade(HC, 0.25)); R(g, 9, 3, 1, 2, shade(HC, 0.25)); }
+    if (L.hat === 'skull') { R(g, 4, 1, 8, 4, HC); R(g, 3, 2, 1, 2, HC); R(g, 12, 2, 1, 2, HC); R(g, 5, 3, 2, 2, '#2b2220'); R(g, 9, 3, 2, 2, '#2b2220'); R(g, 7, 4, 2, 1, '#2b2220'); }
+    if (L.hat === 'mask') { R(g, 4, 6, 8, 3, HC); R(g, 3, 7, 2, 1, shade(HC, -0.2)); R(g, 11, 7, 2, 1, shade(HC, -0.2)); if (side) R(g, Lf ? 9 : 5, 6, 1, 2, '#f2ede4'); else { R(g, 5, 7, 2, 1, '#f2ede4'); R(g, 9, 7, 2, 1, '#f2ede4'); } }
   });
   sprCache.set(k, c); return c;
 }
@@ -590,7 +614,7 @@ function netPush(force) {
   if (!CAP.room || !user(ME)) return;
   const p = P.get(ME), u = me(); if (!p) return;
   const t = Date.now(); if (t - lastNet < 160) return;
-  const pres = { uid: ME, n: u.name.slice(0, 40), t: (u.title || '').slice(0, 40), lk: lookOf(u), x: Math.round(p.x), y: Math.round(p.y), d: p.dir, s: u.status, m: !!p.moving, mu: !!S.voice.muted, df: !!S.voice.deafened, w: (activityOf(u, true) || { text: '' }).text.slice(0, 40), wk: (activityOf(u, true) || { kind: '' }).kind };
+  const pres = { uid: ME, n: u.name.slice(0, 40), t: (u.title || '').slice(0, 40), lk: lookOf(u), x: Math.round(p.x), y: Math.round(p.y), d: p.dir, s: u.status, m: !!p.moving, mu: !!S.voice.muted, df: !!S.voice.deafened, vr: S.voice.room || null, vm: S.voice.mode === 'shout' ? 'shout' : 'near', w: (activityOf(u, true) || { text: '' }).text.slice(0, 40), wk: (activityOf(u, true) || { kind: '' }).kind };
   const str = JSON.stringify(pres); if (str === lastNetStr) return;
   lastNet = t; lastNetStr = str;
   CAP.room.presence(pres).catch(() => {});
@@ -860,7 +884,8 @@ function editorHTML(kind, who) {
     <button type="button" class="sv-dice" data-a="edShuffle" data-kind="${kind}">${DICE}${t_('Random')}</button></div>
     <div class="sv-right" id="edb-${kind}"></div></div>`;
 }
-const cap1 = v => v === 'none' ? t_('None') : /^\d$/.test(v) ? v + ' ' + t_('screens') : t_(v.charAt(0).toUpperCase() + v.slice(1));
+const HAT_LABELS = { topHat: 'Top hat', animalEars: 'Animal ears', leafCrown: 'Leaf crown', hardHat: 'Hard hat', flowerCrown: 'Flower crown' };
+const cap1 = v => v === 'none' ? t_('None') : /^\d$/.test(v) ? v + ' ' + t_('screens') : t_(HAT_LABELS[v] || v.charAt(0).toUpperCase() + v.slice(1));
 function renderEditor(kind) {
   const b = document.getElementById('edb-' + kind), V = ED[kind]; if (!b || !V) return;
   const O = OPTS[kind];

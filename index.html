@@ -160,8 +160,13 @@ a{color:#2a6aa8}
 #netdot{width:10px;height:10px;border-radius:50%;background:#e0b040;display:inline-block;box-shadow:0 0 0 2px #fffaf0}
 #netdot[data-s="live"]{background:#2fb36a}#netdot[data-s="error"],#netdot[data-s="offline"]{background:#d93b3b}
 @media (pointer:coarse){.ytdock{bottom:auto;top:calc(200px + env(safe-area-inset-top,0px));width:200px}}
-/* Bongo Cat cursor for everyone */
+/* Bongo Cat cursor for everyone; cursor.js animates the extracted ANI frames. */
 html,body,*,*::before,*::after{cursor:url(cursor/bongo-cat-32.png) 8 8,auto;cursor:-webkit-image-set(url(cursor/bongo-cat-32.png) 1x,url(cursor/bongo-cat-64.png) 2x) 8 8,auto}
+html.bongo-ani-cursor,html.bongo-ani-cursor *{cursor:none!important}
+html.bongo-ani-cursor input:not([type=range]):not([type=checkbox]):not([type=radio]),html.bongo-ani-cursor textarea,html.bongo-ani-cursor [contenteditable]:not([contenteditable="false"]){cursor:text!important}
+#bongo-ani-cursor{position:fixed;left:0;top:0;width:32px;height:32px;display:none;pointer-events:none;z-index:2147483647;image-rendering:pixelated}
+html.bongo-ani-cursor #bongo-ani-cursor{display:block}
+html.bongo-ani-text #bongo-ani-cursor{display:none}
 input:not([type=range]):not([type=checkbox]):not([type=radio]),textarea,[contenteditable]{cursor:text}
 /* mic modes */
 .vb-mode{gap:4px}
@@ -481,7 +486,9 @@ textarea.in{resize:vertical;min-height:72px}
 <script src="views.js?v=20261031052211" charset="utf-8"></script>
 <script src="onboard.js?v=20261031052211" charset="utf-8"></script>
 <script src="actions.js?v=20261031052211" charset="utf-8"></script>
+<script src="cursor.js?v=20261031052211" charset="utf-8"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="sync.js?v=20261031052211" charset="utf-8"></script>
+<script src="voice.js?v=20261031052211" charset="utf-8"></script>
 </body>
 </html>

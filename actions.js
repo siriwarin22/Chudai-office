@@ -196,15 +196,16 @@ const A = {
     const r = ROOMS.find(x => x.id === d.id), m = me();
     if (r.locked && role() === 'employee') { notify(S.users.filter(u => u.room === r.id || u.role === 'manager').map(u => u.id), { type: 'call', title: `${m.name} knocked on the Private room`, from: ME }); toast('Knock sent', 'People in the Private room have been notified.', 'info'); commit(); return; }
     m.room = r.id; S.voice = { room: r.id, muted: !!S.voice.muted, deafened: !!S.voice.deafened, sharing: false, since: now() };
+    if (typeof VOICE !== 'undefined') { VOICE.refresh(); if (!S.voice.muted) VOICE.enableMic(); }
     log(ME, `joined ${r.name}`);
     if (r.id === 'focus' && m.status !== 'focus') { startFocus(50); }
     else if (r.id === 'meeting' && ['online', 'busy', 'away'].includes(m.status)) setTemp(m, 'meeting', null, 'room');
     if (UI.route !== 'voice') toast(`Joined ${r.name}`, 'Mic and headphone controls are at the bottom left.', 'ok');
     commit();
   },
-  leaveRoom() { const m = me(); const r = ROOMS.find(x => x.id === m.room); m.room = null; S.voice = { room: null, muted: !!S.voice.muted, deafened: !!S.voice.deafened, sharing: false, since: null }; if (m.auto === 'room' || m.auto === 'meeting') restore(m); if (r) log(ME, `left ${r.name}`); commit(); },
-  vMute() { S.voice.muted = !S.voice.muted; if (!S.voice.muted && S.voice.deafened) S.voice.deafened = false; const l = S.voice.muted ? 'Microphone off' : 'Microphone on'; PX.flash(t(l)); toast(l, S.voice.muted ? 'Others see a muted mic above your head.' : 'People in range can hear you.', S.voice.muted ? 'warn' : 'ok'); commit(); },
-  vDeaf() { S.voice.deafened = !S.voice.deafened; if (S.voice.deafened) S.voice.muted = true; const l = S.voice.deafened ? 'Headphones off' : 'Headphones on'; PX.flash(t(l)); toast(l, S.voice.deafened ? 'You will not hear anyone. Your mic is off too.' : 'You can hear people again.', S.voice.deafened ? 'warn' : 'ok'); commit(); },
+  leaveRoom() { const m = me(); const r = ROOMS.find(x => x.id === m.room); m.room = null; S.voice = { room: null, muted: !!S.voice.muted, deafened: !!S.voice.deafened, sharing: false, since: null }; if (typeof VOICE !== 'undefined') VOICE.refresh(); if (m.auto === 'room' || m.auto === 'meeting') restore(m); if (r) log(ME, `left ${r.name}`); commit(); },
+  vMute() { if (typeof VOICE !== 'undefined') return VOICE.toggleMic(); S.voice.muted = !S.voice.muted; if (!S.voice.muted && S.voice.deafened) S.voice.deafened = false; commit(); },
+  vDeaf() { S.voice.deafened = !S.voice.deafened; if (S.voice.deafened) S.voice.muted = true; if (typeof VOICE !== 'undefined') VOICE.applyMute(); const l = S.voice.deafened ? 'Headphones off' : 'Headphones on'; PX.flash(t(l)); toast(l, S.voice.deafened ? 'You will not hear anyone. Your mic is off too.' : 'You can hear people again.', S.voice.deafened ? 'warn' : 'ok'); commit(); },
   workOn(d) { me().doing = { task: d.id }; const k = task(d.id); if (k && k.status === 'todo' && !isBlocked(k)) changeTaskStatus(k, 'progress'); toast('Status updated', 'Everyone sees what you are working on above your head.', 'ok'); log(ME, `is working on ${d.id}`, { task: d.id }); commit(); },
   clearDoing() { me().doing = null; closePop(); toast('Activity cleared', '', 'info'); commit(); },
   vShare() { S.voice.sharing = !S.voice.sharing; if (S.voice.sharing) toast('Screen sharing started', 'Simulated: others in the room see a placeholder.', 'info'); commit(); },
@@ -489,13 +490,6 @@ $('#filepick').addEventListener('change', e => {
   else { metas.forEach(m => S.files.push({ id: m.id, name: m.name, size: m.size, folder: folderOf(), by: ME, at: now(), task: null })); toast(`${metas.length} file${metas.length > 1 ? 's' : ''} uploaded`, `To ${folderOf()}`, 'ok'); }
   PICK = null; commit();
 });
-// simulated speaking indicator for voice rooms
-setInterval(() => {
-  const tiles = $$('[data-speaker]'); tiles.forEach(t => t.classList.remove('speaking'));
-  if (!tiles.length || S.voice.deafened) return;
-  const cand = tiles.filter(t => !(t.dataset.speaker === ME && S.voice.muted));
-  if (cand.length && Math.random() < 0.8) pick(cand).classList.add('speaking');
-}, 1300);
 
 Object.assign(A, OBA, {
   pxZoom(d) { PX.mode = d.v; render(); },
@@ -507,7 +501,7 @@ Object.assign(A, OBA, {
   edRot(d) { PX.rotate(+d.v); },
   placeDesk() { PX.startPlacing(); },
   pxRemoveDesk(d) { PX.removeDesk(d.id); },
-  vMode(d) { S.voice.mode = d.v; toast(d.v === 'shout' ? 'Shout mode' : 'Nearby mode', d.v === 'shout' ? 'Everyone in the office hears you.' : 'Only people inside the dotted circle hear you.', 'info'); commit(); },
+  vMode(d) { S.voice.mode = d.v; if (typeof VOICE !== 'undefined') VOICE.refresh(); toast(d.v === 'shout' ? 'Shout mode' : 'Nearby mode', d.v === 'shout' ? 'Everyone in the office hears you.' : 'Only people inside the dotted circle hear you.', 'info'); commit(); },
   edSave(d) { PX.saveEd(d.kind); },
   edShuffle(d) { PX.shuffleEd(d.kind); },
   openWin(d) { closePop(); if (UI.route === d.v) go('floor'); else go(d.v); },

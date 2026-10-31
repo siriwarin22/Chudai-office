@@ -117,6 +117,7 @@ const NET = (() => {
     };
     ch.on('broadcast', { event: 'say' }, ({ payload }) => { if (payload && typeof PX !== 'undefined') PX.remoteSay({ peer: payload.peer, data: payload.data, isMe: false }); });
     ch.on('broadcast', { event: 'dj' }, ({ payload }) => { if (payload && typeof DJ !== 'undefined') DJ.onMsg({ peer: payload.peer, data: payload.data, isMe: false }); });
+    ch.on('broadcast', { event: 'voiceSignal' }, ({ payload }) => { if (payload && typeof VOICE !== 'undefined') VOICE.onSignal(payload.peer, payload.data); });
     let known = new Set(); const seen = new Map(), startedAt = Date.now();
     // people whose tabs are all closed are offline (checked by one tab, with a grace period)
     const offlineCheck = () => {
