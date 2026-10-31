@@ -25,6 +25,10 @@ const VOICE = (() => {
     const room = localVoice().room || null, remoteRoom = presence.vr || null;
     return room || remoteRoom ? !!room && room === remoteRoom : true;
   }
+  function canShareVoice(presence) {
+    const v = localVoice();
+    return sameContext(presence) || v.mode === 'shout' || presence.vm === 'shout';
+  }
   function distanceTo(presence) {
     const mine = typeof PX !== 'undefined' && PX.myPos();
     return mine && Number.isFinite(+presence.x) && Number.isFinite(+presence.y)
@@ -101,7 +105,7 @@ const VOICE = (() => {
   async function onSignal(from, data) {
     if (!data || !data.signal || data.to !== tabId || !from || from === tabId) return;
     const presence = Object.assign({}, (CAP.peers || []).find(p => p.peer === from)?.presence || {}, { vr: data.room || null });
-    if (!sameContext(presence)) return;
+    if (!canShareVoice(presence)) return;
     const entry = peers.get(from) || makePeer(from, presence), pc = entry.pc, signal = data.signal;
     try {
       if (signal.description) {
@@ -124,7 +128,7 @@ const VOICE = (() => {
     const seen = new Set();
     (CAP.peers || []).forEach(peer => {
       const p = peer.presence;
-      if (peer.isMe || !p || !p.uid || p.uid === ME || !sameContext(p)) return;
+      if (peer.isMe || !p || !p.uid || p.uid === ME || !canShareVoice(p)) return;
       seen.add(peer.peer);
       const entry = peers.get(peer.peer);
       if (entry) { entry.presence = p; entry.lastSeenAt = Date.now(); setRemoteVolume(entry); }
