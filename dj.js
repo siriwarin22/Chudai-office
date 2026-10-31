@@ -123,7 +123,9 @@ const DJ = (() => {
     if (!window.ND_HOSTED || !S || !user(ME)) return;
     const d = D(), el = dock(), vid = d.yt ? ytId(d.yt.url) : '';
     el.hidden = !vid; const op = document.getElementById('ytopen'); if (op && d.yt) op.href = d.yt.url;
-    if (!vid) { if (yp && yp.stopVideo) try { yp.stopVideo(); } catch (e) {} ypVid = ''; return; }
+    if (!vid) { if (yp || ypVid) teardown(); return; }
+    // if the player is not answering commands, a new song means a fresh player (otherwise the old song or ad keeps playing)
+    if (yp && vid !== ypVid && !apiAlive) teardown();
     const start = Math.max(0, Math.floor((Date.now() - (d.yt.at || Date.now())) / 1000));
     if (fallback) { if (vid !== ypVid) useFallback(vid, start); return; }
     if (!(window.YT && window.YT.Player)) { if (!loadApi.t0) loadApi.t0 = Date.now(); if (Date.now() - loadApi.t0 > 8000) { useFallback(vid, start); return; } stat('Loading player…'); return loadApi(player); }
@@ -156,6 +158,12 @@ const DJ = (() => {
     fallback = true; const box = document.querySelector('#ytdock .ytframe'); if (!box) return;
     box.innerHTML = `<iframe referrerpolicy="strict-origin-when-cross-origin" src="https://www.youtube.com/embed/${encodeURIComponent(vid)}?autoplay=1&start=${start}&playsinline=1&rel=0&origin=${encodeURIComponent(location.origin)}" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen title="DJ"></iframe>`;
     ypVid = vid; stat('Press ▶ in the video to listen');
+  }
+  function teardown() {
+    try { if (yp && yp.destroy) yp.destroy(); } catch (e) {}
+    const box = document.querySelector('#ytdock .ytframe');
+    if (box) { box.querySelectorAll('iframe').forEach(f => f.remove()); const old = document.getElementById('ytplayer'); if (old) old.remove(); const div = document.createElement('div'); div.id = 'ytplayer'; box.prepend(div); }
+    yp = null; ypVid = ''; apiAlive = false; fallback = false; tapBtn(false);
   }
   function tapBtn(on) { const b = document.querySelector('#ytdock .yttap'); if (b) b.hidden = !on; }
   function checkBlocked() { if (!yp || !yp.getPlayerState || !apiAlive) return; const s = yp.getPlayerState(); const muted = yp.isMuted && yp.isMuted(); if (((s === -1 || s === 5) || muted) && D().yt) { ypBlocked = true; tapBtn(true); stat(muted ? 'Muted by the browser. Tap to listen' : 'Blocked by the browser. Tap to listen'); } else tapBtn(false); }
