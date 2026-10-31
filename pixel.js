@@ -585,14 +585,25 @@ function arrive(p, u) {
   if (p.id === ME) {
     if (p.pending) { const o = p.pending; p.pending = null; const cx = o.x + (o.w || 1) / 2 - 0.5, cy = o.y + (o.h || 1) / 2 - 0.5, t = tileOf(p); const dx = cx - t.x, dy = cy - t.y; p.dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'r' : 'l') : (dy > 0 ? 'd' : 'u'); o.act[1](); }
     if (p.manual) { p.manual = false; arrivedMe(p); }
+    else if (zoneOf(tileOf(p).x, tileOf(p).y)?.[4] === 'designpod') joinDesignPodVoice();
   }
 }
 let lastZoneMe = null;
+function joinDesignPodVoice() {
+  const m = me();
+  if (m.room && m.room !== 'design') A.leaveRoom();
+  if (S.voice.room === 'design') return;
+  S.voice = Object.assign({}, S.voice, { room: 'design', sharing: false, since: now() });
+  if (typeof VOICE !== 'undefined') { VOICE.refresh(); if (!S.voice.muted) VOICE.enableMic(); }
+  toast('Joined Design voice room', 'Your character stays in the Design team area.', 'ok');
+  commit();
+}
 function arrivedMe(p) {
   const t = tileOf(p), z = zoneOf(t.x, t.y), k = z ? z[4] : null, m = me();
   if (k === lastZoneMe) return; lastZoneMe = k;
-  if (k && ROOMKEYS.includes(k) && m.room !== k) A.joinRoom({ id: k });
-  else if (m.room && k !== m.room) A.leaveRoom();
+  if (k === 'designpod') joinDesignPodVoice();
+  else if (ROOMKEYS.includes(k) && (m.room !== k || S.voice.room !== k)) A.joinRoom({ id: k });
+  else if (!ROOMKEYS.includes(k) && (m.room || S.voice.room)) A.leaveRoom();
   if (k === 'dressing') openEditor('look');
   p.key = desiredKey(m);
 }
