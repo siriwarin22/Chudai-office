@@ -115,7 +115,7 @@ const DJ = (() => {
   }
   function dock() {
     let el = document.getElementById('ytdock');
-    if (!el) { el = document.createElement('div'); el.id = 'ytdock'; el.className = 'ytdock wbox'; el.innerHTML = `<div class="ytbar"><span>♪ DJ</span><span id="ytstat" class="ytstat">Loading player…</span><a id="ytopen" target="_blank" rel="noopener" title="Open on YouTube">↗</a><button type="button" data-a="djSkip" title="Skip">⏭</button><button type="button" data-a="djMin" title="Hide video">–</button></div><div class="ytframe"><div id="ytplayer"></div><button type="button" class="yttap" data-a="djTap">🔊 Tap to listen</button></div>`; document.body.appendChild(el); }
+    if (!el) { el = document.createElement('div'); el.id = 'ytdock'; el.className = 'ytdock wbox'; el.innerHTML = `<div class="ytbar"><span>♪ DJ</span><span id="ytstat" class="ytstat">Loading player…</span><a id="ytopen" target="_blank" rel="noopener" title="Open on YouTube">↗</a><button type="button" data-a="djSkip" title="Skip">⏭</button><button type="button" data-a="djMin" title="Hide video">–</button></div><div class="ytframe"><div id="ytplayer"></div><button type="button" class="yttap" data-a="djTap" hidden>🔊 Tap to listen</button></div>`; document.body.appendChild(el); }
     return el;
   }
   const volNow = () => { const d = D(); let g = d.vol; if (d.near && typeof PX !== 'undefined') { const a = PX.myPos(), b = PX.boothPos(); if (a) { const dist = Math.hypot(a.x - b.x, a.y - b.y) / 16; g *= Math.max(0.12, Math.min(1, 1.15 - dist / 18)); } } if (S.voice && S.voice.deafened) g = 0; return Math.round(g); };
@@ -136,20 +136,21 @@ const DJ = (() => {
       ifr.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
       ifr.setAttribute('allow', 'autoplay; encrypted-media; picture-in-picture');
       ifr.src = `https://www.youtube.com/embed/${encodeURIComponent(vid)}?enablejsapi=1&autoplay=1&start=${start}&playsinline=1&rel=0&origin=${encodeURIComponent(location.origin)}&widget_referrer=${encodeURIComponent(location.href)}`;
+      ifr.addEventListener('load', () => { if (!apiAlive) { stat('Playing'); tapBtn(false); } });
       box.replaceWith(ifr);
       yp = new YT.Player('ytplayer', {
         events: {
-          onReady: e => { stat('Ready'); try { e.target.unMute(); e.target.setVolume(volNow()); e.target.playVideo(); } catch (er) {} setTimeout(checkBlocked, 1800); },
-          onStateChange: e => { stat(STATES[e.data] || 'Ready'); if (e.data === 1) { if (e.target.isMuted && e.target.isMuted() && volNow() > 0) { ypBlocked = true; tapBtn(true); } else { ypBlocked = false; tapBtn(false); } } else if (e.data === -1 || e.data === 5) tapBtn(true); else tapBtn(false); if (e.data === 0 && window.NET_LEADER !== false) actions.djSkip({ auto: true }); },
+          onReady: e => { apiAlive = true; stat('Ready'); try { e.target.unMute(); e.target.setVolume(volNow()); e.target.playVideo(); } catch (er) {} setTimeout(checkBlocked, 1800); },
+          onStateChange: e => { apiAlive = true; stat(STATES[e.data] || 'Ready'); if (e.data === 1) { if (e.target.isMuted && e.target.isMuted() && volNow() > 0) { ypBlocked = true; tapBtn(true); } else { ypBlocked = false; tapBtn(false); } } else if (e.data === -1 || e.data === 5) tapBtn(true); else tapBtn(false); if (e.data === 0 && window.NET_LEADER !== false) actions.djSkip({ auto: true }); },
           onError: e => { stat(`This video cannot play here (code ${e.data}). Skipping…`); setTimeout(() => { if (window.NET_LEADER !== false) actions.djSkip({ auto: true }); }, 3000); },
         } });
       return;
     }
-    if (vid !== ypVid && yp.loadVideoById) { ypVid = vid; tapBtn(true); yp.loadVideoById({ videoId: vid, startSeconds: start }); setTimeout(checkBlocked, 1800); }
+    if (vid !== ypVid && yp.loadVideoById) { ypVid = vid; tapBtn(false); stat('Loading player…'); yp.loadVideoById({ videoId: vid, startSeconds: start }); setTimeout(checkBlocked, 1800); }
   }
   function stat(t_) { const s = document.getElementById('ytstat'); if (s && s.textContent !== t(t_)) s.textContent = t(t_); }
   const STATES = { '-1': 'Ready, waiting to start', 0: 'Song ended', 1: 'Playing', 2: 'Paused', 3: 'Buffering…', 5: 'Ready, waiting to start' };
-  let fallback = false;
+  let fallback = false, apiAlive = false;
   function useFallback(vid, start) {
     // the YouTube control script did not load: show YouTube's own player so its play button works
     fallback = true; const box = document.querySelector('#ytdock .ytframe'); if (!box) return;
@@ -157,7 +158,7 @@ const DJ = (() => {
     ypVid = vid; stat('Press ▶ in the video to listen');
   }
   function tapBtn(on) { const b = document.querySelector('#ytdock .yttap'); if (b) b.hidden = !on; }
-  function checkBlocked() { if (!yp || !yp.getPlayerState) return; const s = yp.getPlayerState(); const muted = yp.isMuted && yp.isMuted(); if (((s === -1 || s === 5) || muted) && D().yt) { ypBlocked = true; tapBtn(true); stat(muted ? 'Muted by the browser. Tap to listen' : 'Blocked by the browser. Tap to listen'); } else tapBtn(false); }
+  function checkBlocked() { if (!yp || !yp.getPlayerState || !apiAlive) return; const s = yp.getPlayerState(); const muted = yp.isMuted && yp.isMuted(); if (((s === -1 || s === 5) || muted) && D().yt) { ypBlocked = true; tapBtn(true); stat(muted ? 'Muted by the browser. Tap to listen' : 'Blocked by the browser. Tap to listen'); } else tapBtn(false); }
   // browsers (Brave, Safari, Chrome) only allow sound after the person interacts: any click or key on the page starts the music
   // only nudge a player that has not started or was muted by the browser; never seek (that restarted ads and songs)
   function resume(e) {
@@ -171,7 +172,7 @@ const DJ = (() => {
   }
   ['pointerdown', 'keydown'].forEach(ev => addEventListener(ev, resume, { passive: true }));
   setInterval(() => {
-    if (!yp || !yp.getPlayerState) return;
+    if (!yp || !yp.getPlayerState || !apiAlive) return;
     try {
       yp.setVolume(volNow());
       // keep the status line and the listen button honest even if the player's events are missed
