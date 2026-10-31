@@ -32,17 +32,18 @@ const VOICE = (() => {
   }
   function canHear(presence) {
     const v = localVoice();
-    if (!sameContext(presence) || v.deafened) return false;
+    if (v.deafened) return false;
     if (v.room && v.room === presence.vr) return true;
-    return presence.vm === 'shout' || distanceTo(presence) <= HEAR_DISTANCE;
+    if (v.mode === 'shout' || presence.vm === 'shout') return true;
+    return sameContext(presence) && distanceTo(presence) <= HEAR_DISTANCE;
   }
   function shouldConnect(presence) {
     const v = localVoice();
-    if (!sameContext(presence)) return false;
     if (v.room && v.room === presence.vr) return true;
     const localSending = !v.muted && !v.deafened, remoteSending = !presence.mu;
-    if (!localSending && !remoteSending) return false;
-    return (localSending && v.mode === 'shout') || (remoteSending && presence.vm === 'shout') || distanceTo(presence) <= HEAR_DISTANCE;
+    if (remoteSending && canHear(presence)) return true;
+    const remoteCanHearLocal = v.mode === 'shout' || (sameContext(presence) && (presence.vm === 'shout' || distanceTo(presence) <= HEAR_DISTANCE));
+    return localSending && remoteCanHearLocal;
   }
   function setRemoteVolume(entry) {
     const audible = canHear(entry.presence);
