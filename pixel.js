@@ -548,11 +548,18 @@ let lastMsg = Date.now();
 function step(dt) {
   syncDesks();
   sync();
+  const liveUsers = new Set((CAP.peers || []).map(pe => pe.presence && pe.presence.uid).filter(Boolean));
   const t0 = Date.now();
   S.messages.forEach(m => { if (m.at > lastMsg) { const p = P.get(m.from); if (p && !p.hidden) p.bubble = { text: m.text.length > 26 ? m.text.slice(0, 25) + '…' : m.text, until: t0 + 5000 }; } });
   if (S.messages.length) lastMsg = Math.max(lastMsg, ...S.messages.slice(-5).map(m => m.at));
   P.forEach(p => {
     const u = user(p.id); if (!u) return;
+    if (p.id !== ME && window.ND_HOSTED && !liveUsers.has(p.id) && u.status !== 'offline') {
+      const home = homeSeat(u);
+      p.path = []; p.errand = null; p.moving = false; p.key = desiredKey(u);
+      if (home) { p.x = home.x * T + 8; p.y = home.y * T + 12; p.dir = home.face || 'u'; p.seat = home.x + ',' + home.y; p.hidden = false; }
+      return;
+    }
     if (p.id === ME && kbMove(p, dt)) return;
     if (p.path.length) {
       const n = p.path[0], tx = n.x * T + 8, ty = n.y * T + 12, dx = tx - p.x, dy = ty - p.y, d = Math.hypot(dx, dy);
